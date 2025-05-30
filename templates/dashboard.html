@@ -1,0 +1,85 @@
+{% extends "base.html" %}
+
+{% block title %}Dashboard - Image Scraper{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h2><i class="fas fa-th-large me-2"></i>Image Management Dashboard</h2>
+    <a href="{{ url_for('index') }}" class="btn btn-primary">
+        <i class="fas fa-plus me-1"></i>Scrape More Images
+    </a>
+</div>
+
+{% if classes %}
+    <div class="row">
+        {% for class in classes %}
+            <div class="col-md-6 col-lg-4 mb-4">
+                <div class="card h-100 shadow-sm">
+                    <div class="card-body">
+                        <h5 class="card-title">
+                            <i class="fas fa-folder me-2 text-primary"></i>{{ class.name }}
+                        </h5>
+                        <p class="card-text">
+                            <span class="badge bg-secondary">
+                                <i class="fas fa-image me-1"></i>{{ class.image_count }} images
+                            </span>
+                        </p>
+                        <p class="card-text">
+                            <small class="text-muted">
+                                <i class="fas fa-folder-open me-1"></i>{{ class.path }}
+                            </small>
+                        </p>
+                    </div>
+                    <div class="card-footer bg-transparent">
+                        <div class="d-grid gap-2">
+                            <a href="{{ url_for('view_images', class_name=class.name) }}" 
+                               class="btn btn-outline-primary">
+                                <i class="fas fa-eye me-1"></i>View Images
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        {% endfor %}
+    </div>
+
+    <div class="mt-4">
+        <div class="card">
+            <div class="card-body">
+                <h5 class="card-title">
+                    <i class="fas fa-chart-bar me-2"></i>Summary
+                </h5>
+                <div class="row text-center">
+                    <div class="col-md-4">
+                        <div class="border-end">
+                            <h3 class="text-primary">{{ classes|length }}</h3>
+                            <p class="text-muted mb-0">Total Classes</p>
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="border-end">
+                            <h3 class="text-success">{{ classes|sum(attribute='image_count') }}</h3>
+                            <p class="text-muted mb-0">Total Images</p>
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <h3 class="text-info">{{ "%.1f"|format(classes|sum(attribute='image_count') / classes|length) if classes|length > 0 else 0 }}</h3>
+                        <p class="text-muted mb-0">Avg per Class</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+{% else %}
+    <div class="text-center py-5">
+        <div class="mb-4">
+            <i class="fas fa-folder-open fa-5x text-muted"></i>
+        </div>
+        <h3 class="text-muted">No Image Classes Found</h3>
+        <p class="text-muted mb-4">You haven't scraped any images yet. Start by creating your first image collection!</p>
+        <a href="{{ url_for('index') }}" class="btn btn-primary btn-lg">
+            <i class="fas fa-search me-2"></i>Start Scraping Images
+        </a>
+    </div>
+{% endif %}
+{% endblock %}

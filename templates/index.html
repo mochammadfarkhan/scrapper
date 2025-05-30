@@ -1,0 +1,92 @@
+{% extends "base.html" %}
+
+{% block title %}Scrape Images - Image Scraper{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-md-8 col-lg-6">
+        <div class="card shadow">
+            <div class="card-header bg-primary text-white">
+                <h4 class="card-title mb-0">
+                    <i class="fas fa-search me-2"></i>Scrape Images from Google
+                </h4>
+            </div>
+            <div class="card-body">
+                <form method="POST" action="{{ url_for('scrape_images') }}" id="scrapeForm">
+                    <div class="mb-3">
+                        <label for="keywords" class="form-label">
+                            <i class="fas fa-tags me-1"></i>Search Keywords *
+                        </label>
+                        <input type="text" class="form-control" id="keywords" name="keywords" 
+                               placeholder="e.g., cats, dogs, cars" required>
+                        <div class="form-text">Enter keywords to search for images</div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="class_name" class="form-label">
+                            <i class="fas fa-folder me-1"></i>Class/Category Name *
+                        </label>
+                        <input type="text" class="form-control" id="class_name" name="class_name" 
+                               placeholder="e.g., animals, vehicles" required>
+                        <div class="form-text">Name for organizing scraped images</div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="destination_folder" class="form-label">
+                            <i class="fas fa-folder-open me-1"></i>Destination Folder
+                        </label>
+                        <input type="text" class="form-control" id="destination_folder" name="destination_folder" 
+                               placeholder="Leave empty for default folder">
+                        <div class="form-text">Optional: Custom folder path (default: scraped_images)</div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="max_images" class="form-label">
+                            <i class="fas fa-image me-1"></i>Maximum Images
+                        </label>
+                        <select class="form-select" id="max_images" name="max_images">
+                            <option value="10">10 images</option>
+                            <option value="20" selected>20 images</option>
+                            <option value="30">30 images</option>
+                            <option value="50">50 images</option>
+                            <option value="100">100 images</option>
+                        </select>
+                        <div class="form-text">Number of images to scrape</div>
+                    </div>
+
+                    <div class="d-grid gap-2">
+                        <button type="submit" class="btn btn-primary btn-lg" id="submitBtn">
+                            <i class="fas fa-download me-2"></i>Start Scraping
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <div class="card mt-4">
+            <div class="card-body">
+                <h5 class="card-title">
+                    <i class="fas fa-info-circle me-2"></i>How it works
+                </h5>
+                <ul class="list-unstyled">
+                    <li><i class="fas fa-check text-success me-2"></i>Enter search keywords</li>
+                    <li><i class="fas fa-check text-success me-2"></i>Specify a category name for organization</li>
+                    <li><i class="fas fa-check text-success me-2"></i>Choose number of images to download</li>
+                    <li><i class="fas fa-check text-success me-2"></i>Images will be saved and organized by category</li>
+                    <li><i class="fas fa-check text-success me-2"></i>Use the dashboard to manage your images</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.getElementById('scrapeForm').addEventListener('submit', function(e) {
+    const submitBtn = document.getElementById('submitBtn');
+    submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Starting...';
+    submitBtn.disabled = true;
+});
+</script>
+{% endblock %}

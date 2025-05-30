@@ -1,0 +1,140 @@
+{% extends "base.html" %}
+
+{% block title %}Scraping Progress - Image Scraper{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-md-8">
+        <div class="card shadow">
+            <div class="card-header bg-info text-white">
+                <h4 class="card-title mb-0">
+                    <i class="fas fa-cog fa-spin me-2"></i>Scraping in Progress
+                </h4>
+            </div>
+            <div class="card-body">
+                <div class="text-center mb-4">
+                    <div class="spinner-border text-primary" role="status" id="loadingSpinner">
+                        <span class="visually-hidden">Loading...</span>
+                    </div>
+                </div>
+                
+                <div class="progress mb-3" style="height: 25px;">
+                    <div class="progress-bar progress-bar-striped progress-bar-animated" 
+                         role="progressbar" 
+                         style="width: 0%" 
+                         id="progressBar">
+                        <span id="progressText">Initializing...</span>
+                    </div>
+                </div>
+                
+                <div class="alert alert-info" role="alert" id="statusMessage">
+                    <i class="fas fa-info-circle me-2"></i>
+                    <span id="statusText">Preparing to start scraping...</span>
+                </div>
+                
+                <div class="text-center" id="completionActions" style="display: none;">
+                    <div class="mb-3">
+                        <i class="fas fa-check-circle fa-3x text-success"></i>
+                    </div>
+                    <h5 class="text-success">Scraping Completed!</h5>
+                    <div class="d-grid gap-2 d-md-flex justify-content-md-center">
+                        <a href="{{ url_for('dashboard') }}" class="btn btn-primary">
+                            <i class="fas fa-th-large me-1"></i>View Dashboard
+                        </a>
+                        <a href="{{ url_for('index') }}" class="btn btn-outline-primary">
+                            <i class="fas fa-search me-1"></i>Scrape More Images
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="card mt-4">
+            <div class="card-body">
+                <h6 class="card-title">
+                    <i class="fas fa-clock me-2"></i>What's happening?
+                </h6>
+                <ul class="list-unstyled small">
+                    <li><i class="fas fa-check text-success me-2"></i>Setting up web scraper</li>
+                    <li><i class="fas fa-check text-success me-2"></i>Searching Google Images</li>
+                    <li><i class="fas fa-check text-success me-2"></i>Downloading images</li>
+                    <li><i class="fas fa-check text-success me-2"></i>Organizing by category</li>
+                    <li><i class="fas fa-check text-success me-2"></i>Validating image files</li>
+                </ul>
+                <p class="text-muted small mb-0">
+                    <i class="fas fa-info-circle me-1"></i>
+                    This process may take a few minutes depending on the number of images requested.
+                </p>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+let progressInterval;
+let isCompleted = false;
+
+function updateProgress() {
+    fetch('/api/scraping_status')
+        .then(response => response.json())
+        .then(data => {
+            const statusText = document.getElementById('statusText');
+            const progressBar = document.getElementById('progressBar');
+            const progressText = document.getElementById('progressText');
+            const loadingSpinner = document.getElementById('loadingSpinner');
+            const completionActions = document.getElementById('completionActions');
+            const statusMessage = document.getElementById('statusMessage');
+            
+            if (statusText) {
+                statusText.textContent = data.progress || 'Waiting...';
+            }
+            
+            if (data.is_running) {
+                // Still running
+                progressBar.style.width = '50%';
+                progressText.textContent = 'In Progress...';
+                statusMessage.className = 'alert alert-info';
+            } else if (data.progress && data.progress.includes('Completed')) {
+                // Completed successfully
+                progressBar.style.width = '100%';
+                progressBar.className = 'progress-bar bg-success';
+                progressText.textContent = 'Complete!';
+                statusMessage.className = 'alert alert-success';
+                
+                if (!isCompleted) {
+                    isCompleted = true;
+                    loadingSpinner.style.display = 'none';
+                    completionActions.style.display = 'block';
+                    clearInterval(progressInterval);
+                }
+            } else if (data.progress && data.progress.includes('Error')) {
+                // Error occurred
+                progressBar.style.width = '100%';
+                progressBar.className = 'progress-bar bg-danger';
+                progressText.textContent = 'Error';
+                statusMessage.className = 'alert alert-danger';
+                loadingSpinner.style.display = 'none';
+                clearInterval(progressInterval);
+            }
+        })
+        .catch(error => {
+            console.error('Error fetching status:', error);
+        });
+}
+
+// Start polling for updates
+document.addEventListener('DOMContentLoaded', function() {
+    updateProgress(); // Initial update
+    progressInterval = setInterval(updateProgress, 2000); // Update every 2 seconds
+});
+
+// Clean up interval when page is unloaded
+window.addEventListener('beforeunload', function() {
+    if (progressInterval) {
+        clearInterval(progressInterval);
+    }
+});
+</script>
+{% endblock %}
