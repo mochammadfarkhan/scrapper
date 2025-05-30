@@ -4,7 +4,7 @@
 
 {% block content %}
 <div class="row justify-content-center">
-    <div class="col-md-8">
+    <div class="col-md-10">
         <div class="card shadow">
             <div class="card-header bg-info text-white">
                 <h4 class="card-title mb-0">
@@ -17,21 +17,46 @@
                         <span class="visually-hidden">Loading...</span>
                     </div>
                 </div>
-                
+
                 <div class="progress mb-3" style="height: 25px;">
-                    <div class="progress-bar progress-bar-striped progress-bar-animated" 
-                         role="progressbar" 
-                         style="width: 0%" 
-                         id="progressBar">
+                    <div class="progress-bar progress-bar-striped progress-bar-animated" role="progressbar"
+                        style="width: 0%" id="progressBar">
                         <span id="progressText">Initializing...</span>
                     </div>
                 </div>
-                
+
                 <div class="alert alert-info" role="alert" id="statusMessage">
                     <i class="fas fa-info-circle me-2"></i>
                     <span id="statusText">Preparing to start scraping...</span>
                 </div>
-                
+
+                <!-- Real-time Logs Section -->
+                <div class="card mt-4">
+                    <div class="card-header d-flex justify-content-between align-items-center">
+                        <h6 class="mb-0">
+                            <i class="fas fa-terminal me-2"></i>Real-time Logs
+                        </h6>
+                        <div class="btn-group btn-group-sm">
+                            <button class="btn btn-outline-secondary" id="toggleLogs" onclick="toggleLogDisplay()">
+                                <i class="fas fa-eye me-1"></i>Show Details
+                            </button>
+                            <button class="btn btn-outline-primary" id="downloadLogs" onclick="downloadLogs()" disabled>
+                                <i class="fas fa-download me-1"></i>Download
+                            </button>
+                            <button class="btn btn-outline-danger" id="clearLogs" onclick="clearLogs()" disabled>
+                                <i class="fas fa-trash me-1"></i>Clear
+                            </button>
+                        </div>
+                    </div>
+                    <div class="card-body p-0" id="logsContainer" style="display: none;">
+                        <div class="log-display" id="logDisplay">
+                            <div class="text-muted text-center p-3">
+                                <i class="fas fa-clock me-2"></i>Waiting for logs...
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
                 <div class="text-center" id="completionActions" style="display: none;">
                     <div class="mb-3">
                         <i class="fas fa-check-circle fa-3x text-success"></i>
@@ -48,7 +73,7 @@
                 </div>
             </div>
         </div>
-        
+
         <div class="card mt-4">
             <div class="card-body">
                 <h6 class="card-title">
@@ -72,69 +97,336 @@
 {% endblock %}
 
 {% block scripts %}
-<script>
-let progressInterval;
-let isCompleted = false;
-
-function updateProgress() {
-    fetch('/api/scraping_status')
-        .then(response => response.json())
-        .then(data => {
-            const statusText = document.getElementById('statusText');
-            const progressBar = document.getElementById('progressBar');
-            const progressText = document.getElementById('progressText');
-            const loadingSpinner = document.getElementById('loadingSpinner');
-            const completionActions = document.getElementById('completionActions');
-            const statusMessage = document.getElementById('statusMessage');
-            
-            if (statusText) {
-                statusText.textContent = data.progress || 'Waiting...';
-            }
-            
-            if (data.is_running) {
-                // Still running
-                progressBar.style.width = '50%';
-                progressText.textContent = 'In Progress...';
-                statusMessage.className = 'alert alert-info';
-            } else if (data.progress && data.progress.includes('Completed')) {
-                // Completed successfully
-                progressBar.style.width = '100%';
-                progressBar.className = 'progress-bar bg-success';
-                progressText.textContent = 'Complete!';
-                statusMessage.className = 'alert alert-success';
-                
-                if (!isCompleted) {
-                    isCompleted = true;
-                    loadingSpinner.style.display = 'none';
-                    completionActions.style.display = 'block';
-                    clearInterval(progressInterval);
-                }
-            } else if (data.progress && data.progress.includes('Error')) {
-                // Error occurred
-                progressBar.style.width = '100%';
-                progressBar.className = 'progress-bar bg-danger';
-                progressText.textContent = 'Error';
-                statusMessage.className = 'alert alert-danger';
-                loadingSpinner.style.display = 'none';
-                clearInterval(progressInterval);
-            }
-        })
-        .catch(error => {
-            console.error('Error fetching status:', error);
-        });
-}
-
-// Start polling for updates
-document.addEventListener('DOMContentLoaded', function() {
-    updateProgress(); // Initial update
-    progressInterval = setInterval(updateProgress, 2000); // Update every 2 seconds
-});
-
-// Clean up interval when page is unloaded
-window.addEventListener('beforeunload', function() {
-    if (progressInterval) {
-        clearInterval(progressInterval);
+<style>
+    .log-display {
+        height: 400px;
+        overflow-y: auto;
+        background-color: #1e1e1e;
+        color: #ffffff;
+        font-family: 'Courier New', monospace;
+        font-size: 0.875rem;
+        padding: 1rem;
+        border-radius: 0 0 0.375rem 0.375rem;
     }
-});
+
+    .log-entry {
+        margin-bottom: 0.25rem;
+        padding: 0.25rem 0;
+        border-left: 3px solid transparent;
+        padding-left: 0.5rem;
+    }
+
+    .log-entry.log-info {
+        border-left-color: #17a2b8;
+        color: #b3d9ff;
+    }
+
+    .log-entry.log-success {
+        border-left-color: #28a745;
+        color: #b3ffb3;
+    }
+
+    .log-entry.log-warning {
+        border-left-color: #ffc107;
+        color: #fff3cd;
+    }
+
+    .log-entry.log-error {
+        border-left-color: #dc3545;
+        color: #ffb3b3;
+    }
+
+    .log-entry.log-debug {
+        border-left-color: #6c757d;
+        color: #d1d1d1;
+    }
+
+    .log-timestamp {
+        color: #6c757d;
+        font-size: 0.8rem;
+    }
+
+    .log-level {
+        font-weight: bold;
+        margin-right: 0.5rem;
+    }
+
+    .log-message {
+        word-wrap: break-word;
+    }
+
+    .log-display::-webkit-scrollbar {
+        width: 8px;
+    }
+
+    .log-display::-webkit-scrollbar-track {
+        background: #2d2d2d;
+    }
+
+    .log-display::-webkit-scrollbar-thumb {
+        background: #555;
+        border-radius: 4px;
+    }
+
+    .log-display::-webkit-scrollbar-thumb:hover {
+        background: #777;
+    }
+</style>
+
+<script>
+    progressInterval;
+    let logEvent            let isCompleted = false;
+    let logsVi            false;
+
+    function ess() {
+        fetch('/api/scraping_status')
+            .then(re                sponse.json())
+            .then(data => {
+                const sta                cument.getElementById('statusText');
+                const progres                ent.getElementById('progressBar');
+                const progressText                 etElementById('progressText');
+                const loadingSpinner = docume                tById('loadingSpinner');
+                const completionActions = do ementById('complet                              const statusMessage = document.getElementById(                ge'                    if (statusText) {
+                    tatusText.textCon                    ress || 'Waiting...';
+                    if (data.is_running) {
+                        // Sti                               progressBar.style.width = '50%';
+                        progressText.textContent = 'In Progress...';
+                stat                    ame = 'alert alert-info';
+                        // Enable log controls
+                        etElementById('downloadLogs').disabled = false;
+                        ument.getElementById('clearLogs').disabl
+                    } else if (data.progress && data.progress.ted')) {
+                    ccessfully
+                    tyle.width = '100%';
+                    pr = 'progress-bar bg-success';
+                    ontent = 'Complete!';
+                               ge                 'alert alert-success';
+
+                    if (!isCompleted) {
+                        isCompleted = tr                            loadingSpinner.style.displ                                     completionActions.style.display = clearInterval(progress                                    // Keep log controls enabled
+                        document.getElementById('downloadLogs'                    se;
+                    }
+                           da            ess.progress.includes
+                // Error occurred
+                         essB    ar.style.width = '100%';
+                    progressBar.className = 'progress-bar bg-dang er';
+                    progressText.textContent        Error';
+                    statusMessage.className = 'alert alert-danger';
+                    loadingSpinner.style.display = 'none';
+                    clearInterval(progressInterval);
+
+                    // Keep log cont            bled
+                    document.get        en    tById').disabled = false;
+                }
+            })
+            .catch(error => {
+                console.error('Error fetching status:', error);
+            });
+    }
+
+    function initializeLogStream() {
+        if (logEventSource) {
+            logEventSource.close();
+        }
+
+        console.log('Initializing log stream...');
+        logEventSource = new EventSource('/api/scraping_logs/stream');
+
+        logEventSource.onopen = function (event) {
+            console.log('Log stream opened successfully');
+            addStatusMessage('Connected to log stream', 'info');
+        };
+
+        logEventSource.onmessage = function (event) {
+            try {
+                const data = JSON.parse(event.data);
+                console.log('Received log data:', data);
+
+                switch (data.type) {
+                    case 'connected':
+                        console.log('Log stream connected:', data.message);
+                        addStatusMessage(data.message, 'success');
+                        break;
+
+                    case 'log':
+                        addLogEntry(data);
+                        break;
+
+                    case 'heartbeat':
+                        console.log('Heartbeat:', data);
+                        // Update status if needed
+                        break;
+
+                    case 'complete':
+                        console.log('Scraping completed:', data.message);
+                        addStatusMessage(data.message, 'success');
+                        logEventSource.close();
+                        break;
+
+                    case 'error':
+                        console.error('Log streaming error:', data.message);
+                        addStatusMessage('Error: ' + data.message, 'error');
+                        break;
+
+                    case 'disconnect':
+                        console.log('Log stream disconnected:', data.message);
+                        addStatusMessage(data.message, 'info');
+                        break;
+
+                    default:
+                        console.log('Unknown message type:', data);
+                }
+            } catch (error) {
+                console.error('Error parsing log data:', error, event.data);
+            }
+        };
+
+        logEventSource.onerror = function (event) {
+            console.error('Log stream error:', event);
+            addStatusMessage('Log stream connection error', 'error');
+
+            // Try to reconnect after 5 seconds
+            setTimeout(() => {
+                if (logsVisible && !isCompleted) {
+                    console.log('Attempting to reconnect log stream...');
+                    initializeLogStream();
+                }
+            }, 5000);
+        };
+    }
+
+    function addLogEntry(logData) {
+        const logDisplay = document.getElementById('logDisplay');
+
+        // Clear waiting message if present
+        if (logDisplay.querySelector('.text-muted')) {
+            logDisplay.innerHTML = '';
+        }
+
+        const logEntry = document.createElement('div');
+        logEntry.className = `log-entry log-${logData.level.toLowerCase()}`;
+
+        const timestamp = document.createElement('span');
+        timestamp.className = 'log-timestamp';
+        timestamp.textContent = logData.timestamp;
+
+        const level = document.createElement('span');
+        level.className = 'log-level';
+        level.textContent = `[${logData.level}]`;
+
+        const message = document.createElement('span');
+        message.className = 'log-message';
+        message.textContent = logData.message;
+
+        logEntry.appendChild(timestamp);
+        logEntry.appendChild(document.createTextNode(' '));
+        logEntry.appendChild(level);
+        logEntry.appendChild(document.createTextNode(' '));
+        logEntry.appendChild(message);
+
+        logDisplay.appendChild(logEntry);
+
+        // Auto-scroll to bottom
+        logDisplay.scrollTop = logDisplay.scrollHeight;
+
+        // Limit log entries to prevent memory issues (keep last 1000 entries)
+        const entries = logDisplay.querySelectorAll('.log-entry');
+        if (entries.length > 1000) {
+            entries[0].remove();
+        }
+    }
+
+    function addStatusMessage(message, type) {
+        const logDisplay = document.getElementById('logDisplay');
+
+        // Clear waiting message if present
+        if (logDisplay.querySelector('.text-muted')) {
+            logDisplay.innerHTML = '';
+        }
+
+        const statusEntry = document.createElement('div');
+        statusEntry.className = `log-entry log-${type}`;
+        statusEntry.style.fontStyle = 'italic';
+        statusEntry.style.opacity = '0.8';
+
+        const timestamp = document.createElement('span');
+        timestamp.className = 'log-timestamp';
+        timestamp.textContent = new Date().toLocaleString();
+
+        const level = document.createElement('span');
+        level.className = 'log-level';
+        level.textContent = `[SYSTEM]`;
+
+        const messageSpan = document.createElement('span');
+        messageSpan.className = 'log-message';
+        messageSpan.textContent = message;
+
+        statusEntry.appendChild(timestamp);
+        statusEntry.appendChild(document.createTextNode(' '));
+        statusEntry.appendChild(level);
+        statusEntry.appendChild(document.createTextNode(' '));
+        statusEntry.appendChild(messageSpan);
+
+        logDisplay.appendChild(statusEntry);
+
+        // Auto-scroll to bottom
+        logDisplay.scrollTop = logDisplay.scrollHeight;
+    }
+
+    function toggleLogDisplay() {
+        const logsContainer = document.getElementById('logsContainer');
+        const toggleButton = document.getElementById('toggleLogs');
+
+        if (logsVisible) {
+            logsContainer.style.display = 'none';
+            toggleButton.innerHTML = '<i class="fas fa-eye me-1"></i>Show Details';
+            logsVisible = false;
+        } else {
+            logsContainer.style.display = 'block';
+            toggleButton.innerHTML = '<i class="fas fa-eye-slash me-1"></i>Hide Details';
+            logsVisible = true;
+
+            // Initialize log streaming when first shown
+            if (!logEventSource) {
+                initializeLogStream();
+            }
+        }
+    }
+
+    function downloadLogs() {
+        window.open('/api/scraping_logs/download', '_blank');
+    }
+
+    function clearLogs() {
+        if (confirm('Are you sure you want to clear all logs?')) {
+            fetch('/api/scraping_logs/clear', { method: 'POST' })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.status === 'success') {
+                        const logDisplay = document.getElementById('logDisplay');
+                        logDisplay.innerHTML = '<div class="text-muted text-center p-3"><i class="fas fa-clock me-2"></i>Logs cleared...</div>';
+                    }
+                })
+                .catch(error => {
+                    console.error('Error clearing logs:', error);
+                });
+        }
+    }
+
+    // Start polling for updates
+    document.addEventListener('DOMContentLoaded', function () {
+        updateProgress(); // Initial update
+        progressInterval = setInterval(updateProgress, 2000); // Update every 2 seconds
+    });
+
+    // Clean up when page is unloaded
+    window.addEventListener('beforeunload', function () {
+        if (progressInterval) {
+            clearInterval(progressInterval);
+        }
+        if (logEventSource) {
+            logEventSource.close();
+        }
+    });
 </script>
 {% endblock %}

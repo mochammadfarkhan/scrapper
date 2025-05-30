@@ -16,6 +16,7 @@ from webdriver_manager.chrome import ChromeDriverManager
 from PIL import Image
 import io
 from utils import create_class_folder, validate_image, generate_unique_filename
+from logger import scraping_logger
 
 class GoogleImageScraper:
     def __init__(self, headless=True):
@@ -31,11 +32,17 @@ class GoogleImageScraper:
     def setup_driver(self):
         """Setup Chrome WebDriver with appropriate options."""
         try:
+            scraping_logger.info("🚀 Initializing Chrome WebDriver...")
+
             chrome_options = Options()
 
             # Essential options for stability
             if self.headless:
                 chrome_options.add_argument("--headless")
+                scraping_logger.debug("✓ Headless mode enabled")
+            else:
+                scraping_logger.debug("✓ GUI mode enabled")
+
             chrome_options.add_argument("--no-sandbox")
             chrome_options.add_argument("--disable-dev-shm-usage")
             chrome_options.add_argument("--disable-gpu")
@@ -50,49 +57,72 @@ class GoogleImageScraper:
             chrome_options.add_argument("--disable-backgrounding-occluded-windows")
             chrome_options.add_argument("--disable-renderer-backgrounding")
 
+            scraping_logger.debug("✓ Chrome options configured")
+
             # Install and setup ChromeDriver
-            service = Service(ChromeDriverManager().install())
+            scraping_logger.info("📥 Installing/updating ChromeDriver...")
+            driver_path = ChromeDriverManager().install()
+            scraping_logger.debug(f"✓ ChromeDriver path: {driver_path}")
+
+            service = Service(driver_path)
+            scraping_logger.info("🌐 Starting Chrome browser...")
             self.driver = webdriver.Chrome(service=service, options=chrome_options)
 
             # Set timeouts
             self.driver.implicitly_wait(10)
             self.driver.set_page_load_timeout(30)
 
-            print("WebDriver initialized successfully")
+            scraping_logger.success("✅ WebDriver initialized successfully!")
+            scraping_logger.debug(f"✓ Browser version: {self.driver.capabilities.get('browserVersion', 'Unknown')}")
+            scraping_logger.debug(f"✓ Driver version: {self.driver.capabilities.get('chrome', {}).get('chromedriverVersion', 'Unknown')}")
 
         except Exception as e:
-            print(f"Error setting up WebDriver: {str(e)}")
-            raise
+            error_msg = f"❌ Error setting up WebDriver: {str(e)}"
+            scraping_logger.error(error_msg)
+            raise Exception(error_msg)
 
     def search_images(self, query, max_images=20):
         """Search for images on Google Images and extract image URLs."""
         if not self.driver:
-            raise Exception("WebDriver not initialized")
+            error_msg = "❌ WebDriver not initialized"
+            scraping_logger.error(error_msg)
+            raise Exception(error_msg)
 
         try:
             # Navigate to Google Images
             search_url = f"https://www.google.com/search?q={query}&tbm=isch&hl=en"
-            print(f"Navigating to: {search_url}")
+            scraping_logger.info(f"🔍 Starting image search for: '{query}'")
+            scraping_logger.info(f"🌐 Navigating to: {search_url}")
+            scraping_logger.debug(f"✓ Target images: {max_images}")
+
             self.driver.get(search_url)
 
             # Wait for page to load
+            scraping_logger.debug("⏳ Waiting for page to load...")
             time.sleep(2)
 
             # Accept cookies if present
+            scraping_logger.debug("🍪 Checking for cookie consent dialog...")
             try:
                 accept_button = WebDriverWait(self.driver, 5).until(
                     EC.element_to_be_clickable((By.XPATH, "//button[contains(text(), 'Accept all') or contains(text(), 'I agree') or contains(text(), 'Accept')]"))
                 )
                 accept_button.click()
+                scraping_logger.info("✅ Cookie consent accepted")
                 time.sleep(1)
             except TimeoutException:
-                print("No cookie consent dialog found or already accepted")
+                scraping_logger.debug("✓ No cookie consent dialog found or already accepted")
 
             image_urls = set()  # Use set to avoid duplicates
             scroll_attempts = 0
             max_scroll_attempts = 10
 
+            scraping_logger.info(f"🔄 Starting image extraction (max {max_scroll_attempts} scroll attempts)")
+
             while len(image_urls) < max_images and scroll_attempts < max_scroll_attempts:
+                scroll_attempts += 1
+                scraping_logger.debug(f"📜 Scroll attempt {scroll_attempts}/{max_scroll_attempts}")
+
                 # Find image elements using multiple selectors
                 try:
                     # Multiple CSS selectors to catch different image formats
@@ -109,7 +139,7 @@ class GoogleImageScraper:
                             break
 
                         image_elements = self.driver.find_elements(By.CSS_SELECTOR, selector)
-                        print(f"Found {len(image_elements)} elements with selector: {selector}")
+                        scraping_logger.debug(f"🔍 Found {len(image_elements)} elements with selector: {selector}")
 
                         for img_element in image_elements:
                             if len(image_urls) >= max_images:
@@ -123,11 +153,13 @@ class GoogleImageScraper:
 
                             if img_url and self._is_valid_image_url(img_url):
                                 image_urls.add(img_url)
-                                print(f"Added image URL: {img_url[:100]}...")
+                                scraping_logger.debug(f"✅ Added image URL: {img_url[:80]}...")
 
-                    print(f"Current image count: {len(image_urls)}")
+                    current_count = len(image_urls)
+                    scraping_logger.info(f"📊 Current image count: {current_count}/{max_images}")
 
                     # Scroll down to load more images
+                    scraping_logger.debug("📜 Scrolling to load more images...")
                     self.driver.execute_script("window.scrollTo(0, document.body.scrollHeight);")
                     time.sleep(3)
 
@@ -233,6 +265,8 @@ class GoogleImageScraper:
     def download_image(self, url, folder_path, filename_prefix="image"):
         """Download a single image from URL."""
         try:
+            scraping_logger.debug(f"📥 Downloading: {url[:80]}...")
+
             # Add additional headers to mimic a real browser request
             headers = {
                 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
@@ -249,8 +283,10 @@ class GoogleImageScraper:
 
             # Check if the response contains image data
             content_type = response.headers.get('content-type', '').lower()
+            scraping_logger.debug(f"✓ Content-Type: {content_type}")
+
             if not content_type.startswith('image/'):
-                print(f"URL does not contain image data: {url}")
+                scraping_logger.warning(f"⚠️ URL does not contain image data: {url[:80]}...")
                 return None
 
             # Try to determine file extension from URL or content type
@@ -284,53 +320,76 @@ class GoogleImageScraper:
                         f.write(chunk)
 
             # Validate the downloaded image
+            scraping_logger.debug(f"🔍 Validating image: {filename}")
             if validate_image(file_path):
                 # Check file size (minimum 1KB to filter out tiny images)
-                if os.path.getsize(file_path) > 1024:
-                    print(f"Successfully downloaded: {filename}")
+                file_size = os.path.getsize(file_path)
+                scraping_logger.debug(f"✓ File size: {file_size} bytes")
+
+                if file_size > 1024:
+                    scraping_logger.success(f"✅ Successfully downloaded: {filename}")
                     return filename
                 else:
-                    print(f"Image too small, removing: {filename}")
+                    scraping_logger.warning(f"⚠️ Image too small ({file_size} bytes), removing: {filename}")
                     os.remove(file_path)
                     return None
             else:
-                print(f"Invalid image file, removing: {filename}")
+                scraping_logger.warning(f"⚠️ Invalid image file, removing: {filename}")
                 if os.path.exists(file_path):
                     os.remove(file_path)
                 return None
 
         except requests.exceptions.RequestException as e:
-            print(f"Network error downloading image from {url}: {str(e)}")
+            scraping_logger.error(f"🌐 Network error downloading image: {str(e)}")
             return None
         except Exception as e:
-            print(f"Error downloading image from {url}: {str(e)}")
+            scraping_logger.error(f"❌ Error downloading image: {str(e)}")
             return None
 
     def scrape_images(self, query, destination_folder, class_name, max_images=20, progress_callback=None):
         """Main method to scrape images."""
         try:
+            scraping_logger.info(f"🚀 Starting scraping session")
+            scraping_logger.info(f"📝 Query: '{query}', Class: '{class_name}', Max Images: {max_images}")
+
             # Create class folder
             class_folder = create_class_folder(destination_folder, class_name)
+            scraping_logger.info(f"📁 Created/using folder: {class_folder}")
 
             # Search for images
             if progress_callback:
                 progress_callback(f"Searching for images: {query}")
 
+            scraping_logger.info(f"🔍 Starting image URL extraction...")
             image_urls = self.search_images(query, max_images)
 
             if progress_callback:
                 progress_callback(f"Found {len(image_urls)} images. Starting download...")
 
+            scraping_logger.info(f"📊 Found {len(image_urls)} image URLs, starting downloads...")
+
             downloaded_count = 0
+            failed_count = 0
+
             for i, url in enumerate(image_urls):
                 if progress_callback:
                     progress_callback(f"Downloading image {i+1}/{len(image_urls)}")
 
+                scraping_logger.info(f"📥 Downloading image {i+1}/{len(image_urls)}")
                 filename = self.download_image(url, class_folder, class_name)
+
                 if filename:
                     downloaded_count += 1
+                    scraping_logger.debug(f"✅ Success: {filename}")
+                else:
+                    failed_count += 1
+                    scraping_logger.debug(f"❌ Failed: {url[:50]}...")
 
                 time.sleep(0.5)  # Be respectful to the server
+
+            success_msg = f"✅ Download complete! {downloaded_count} images saved, {failed_count} failed"
+            scraping_logger.success(success_msg)
+            scraping_logger.info(f"📁 Images saved to: {class_folder}")
 
             if progress_callback:
                 progress_callback(f"Download complete! {downloaded_count} images saved to {class_folder}")
@@ -338,7 +397,8 @@ class GoogleImageScraper:
             return downloaded_count, class_folder
 
         except Exception as e:
-            error_msg = f"Error during scraping: {str(e)}"
+            error_msg = f"❌ Error during scraping: {str(e)}"
+            scraping_logger.error(error_msg)
             if progress_callback:
                 progress_callback(error_msg)
             return 0, None
@@ -347,17 +407,20 @@ class GoogleImageScraper:
         """Close the WebDriver and session."""
         try:
             if hasattr(self, 'driver') and self.driver:
+                scraping_logger.info("🔒 Closing WebDriver...")
                 self.driver.quit()
                 self.driver = None
-                print("WebDriver closed successfully")
+                scraping_logger.success("✅ WebDriver closed successfully")
         except Exception as e:
-            print(f"Error closing WebDriver: {str(e)}")
+            scraping_logger.error(f"❌ Error closing WebDriver: {str(e)}")
 
         try:
             if hasattr(self, 'session') and self.session:
+                scraping_logger.debug("🔒 Closing HTTP session...")
                 self.session.close()
+                scraping_logger.debug("✅ HTTP session closed")
         except Exception as e:
-            print(f"Error closing session: {str(e)}")
+            scraping_logger.error(f"❌ Error closing session: {str(e)}")
 
     def __del__(self):
         """Destructor to ensure WebDriver is closed."""
