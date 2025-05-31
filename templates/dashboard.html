@@ -11,10 +11,52 @@
 </div>
 
 {% if classes %}
-    <div class="row">
-        {% for class in classes %}
+<!-- Tab Navigation -->
+<div class="mb-4">
+    <ul class="nav nav-tabs" id="categoryTabs" role="tablist">
+        {% for group_name, group_classes in grouped_classes.items() %}
+        <li class="nav-item" role="presentation">
+            <button class="nav-link {% if loop.first %}active{% endif %}"
+                id="{{ group_name|replace('#', 'alpha-')|replace(' ', '-')|lower }}-tab" data-bs-toggle="tab"
+                data-bs-target="#{{ group_name|replace('#', 'alpha-')|replace(' ', '-')|lower }}-pane" type="button"
+                role="tab">
+                {% if group_name == 'All' %}
+                <i class="fas fa-th-large me-1"></i>All
+                <span class="badge bg-primary ms-1">{{ group_classes|length }}</span>
+                {% elif group_name.startswith('#') %}
+                <i class="fas fa-font me-1"></i>{{ group_name }}
+                <span class="badge bg-secondary ms-1">{{ group_classes|length }}</span>
+                {% else %}
+                {% set icons = {
+                'Animals': 'fa-paw',
+                'Vehicles': 'fa-car',
+                'Food': 'fa-utensils',
+                'Nature': 'fa-leaf',
+                'Objects': 'fa-cube',
+                'People': 'fa-users',
+                'Sports': 'fa-football-ball',
+                'Technology': 'fa-microchip'
+                } %}
+                <i class="fas {{ icons.get(group_name, 'fa-folder') }} me-1"></i>{{ group_name }}
+                <span class="badge bg-info ms-1">{{ group_classes|length }}</span>
+                {% endif %}
+            </button>
+        </li>
+        {% endfor %}
+    </ul>
+</div>
+
+<!-- Tab Content -->
+<div class="tab-content" id="categoryTabsContent">
+    {% for group_name, group_classes in grouped_classes.items() %}
+    <div class="tab-pane fade {% if loop.first %}show active{% endif %}"
+        id="{{ group_name|replace('#', 'alpha-')|replace(' ', '-')|lower }}-pane" role="tabpanel">
+
+        {% if group_classes %}
+        <div class="row">
+            {% for class in group_classes %}
             <div class="col-md-6 col-lg-4 mb-4">
-                <div class="card h-100 shadow-sm">
+                <div class="card h-100 shadow-sm class-card">
                     <div class="card-body">
                         <h5 class="card-title">
                             <i class="fas fa-folder me-2 text-primary"></i>{{ class.name }}
@@ -32,54 +74,766 @@
                     </div>
                     <div class="card-footer bg-transparent">
                         <div class="d-grid gap-2">
-                            <a href="{{ url_for('view_images', class_name=class.name) }}" 
-                               class="btn btn-outline-primary">
+                            <a href="{{ url_for('view_images', class_name=class.name) }}"
+                                class="btn btn-outline-primary">
                                 <i class="fas fa-eye me-1"></i>View Images
                             </a>
+                            <button class="btn btn-outline-secondary btn-sm"
+                                onclick="openTabManager('{{ class.name }}')" title="Manage tab assignments">
+                                <i class="fas fa-cog me-1"></i>Manage Tabs
+                            </button>
+                            <button class="btn btn-outline-danger btn-sm"
+                                onclick="openDeleteConfirmation('{{ class.name }}', {{ class.image_count }})"
+                                title="Delete this folder and all its images">
+                                <i class="fas fa-trash me-1"></i>Delete Folder
+                            </button>
                         </div>
                     </div>
                 </div>
             </div>
-        {% endfor %}
+            {% endfor %}
+        </div>
+        {% else %}
+        <div class="text-center py-4">
+            <div class="mb-3">
+                <i class="fas fa-folder-open fa-3x text-muted"></i>
+            </div>
+            <h5 class="text-muted">No folders in this category</h5>
+            <p class="text-muted">Try scraping some images to populate this category.</p>
+        </div>
+        {% endif %}
     </div>
+    {% endfor %}
+</div>
 
-    <div class="mt-4">
-        <div class="card">
-            <div class="card-body">
-                <h5 class="card-title">
-                    <i class="fas fa-chart-bar me-2"></i>Summary
-                </h5>
-                <div class="row text-center">
-                    <div class="col-md-4">
-                        <div class="border-end">
-                            <h3 class="text-primary">{{ classes|length }}</h3>
-                            <p class="text-muted mb-0">Total Classes</p>
-                        </div>
+<div class="mt-4">
+    <div class="card">
+        <div class="card-body">
+            <h5 class="card-title">
+                <i class="fas fa-chart-bar me-2"></i>Summary
+            </h5>
+            <div class="row text-center">
+                <div class="col-md-4">
+                    <div class="border-end">
+                        <h3 class="text-primary">{{ classes|length }}</h3>
+                        <p class="text-muted mb-0">Total Classes</p>
                     </div>
-                    <div class="col-md-4">
-                        <div class="border-end">
-                            <h3 class="text-success">{{ classes|sum(attribute='image_count') }}</h3>
-                            <p class="text-muted mb-0">Total Images</p>
-                        </div>
+                </div>
+                <div class="col-md-4">
+                    <div class="border-end">
+                        <h3 class="text-success">{{ classes|sum(attribute='image_count') }}</h3>
+                        <p class="text-muted mb-0">Total Images</p>
                     </div>
-                    <div class="col-md-4">
-                        <h3 class="text-info">{{ "%.1f"|format(classes|sum(attribute='image_count') / classes|length) if classes|length > 0 else 0 }}</h3>
-                        <p class="text-muted mb-0">Avg per Class</p>
-                    </div>
+                </div>
+                <div class="col-md-4">
+                    <h3 class="text-info">{{ "%.1f"|format(classes|sum(attribute='image_count') / classes|length) if
+                        classes|length > 0 else 0 }}</h3>
+                    <p class="text-muted mb-0">Avg per Class</p>
                 </div>
             </div>
         </div>
     </div>
+</div>
 {% else %}
-    <div class="text-center py-5">
-        <div class="mb-4">
-            <i class="fas fa-folder-open fa-5x text-muted"></i>
-        </div>
-        <h3 class="text-muted">No Image Classes Found</h3>
-        <p class="text-muted mb-4">You haven't scraped any images yet. Start by creating your first image collection!</p>
-        <a href="{{ url_for('index') }}" class="btn btn-primary btn-lg">
-            <i class="fas fa-search me-2"></i>Start Scraping Images
-        </a>
+<div class="text-center py-5">
+    <div class="mb-4">
+        <i class="fas fa-folder-open fa-5x text-muted"></i>
     </div>
+    <h3 class="text-muted">No Image Classes Found</h3>
+    <p class="text-muted mb-4">You haven't scraped any images yet. Start by creating your first image collection!</p>
+    <a href="{{ url_for('index') }}" class="btn btn-primary btn-lg">
+        <i class="fas fa-search me-2"></i>Start Scraping Images
+    </a>
+</div>
 {% endif %}
+
+<!-- Tab Management Modal -->
+<div class="modal fade" id="tabManagerModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">
+                    <i class="fas fa-cog me-2"></i>Manage Tab Assignments
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="mb-3">
+                    <h6 class="fw-bold">Folder: <span id="currentFolderName" class="text-primary"></span></h6>
+                </div>
+
+                <div class="row">
+                    <div class="col-md-6">
+                        <h6 class="fw-bold text-success">
+                            <i class="fas fa-check-circle me-1"></i>Current Tabs
+                        </h6>
+                        <div id="currentTabsList" class="border rounded p-3 mb-3" style="min-height: 200px;">
+                            <div class="text-muted text-center">Loading...</div>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <h6 class="fw-bold text-info">
+                            <i class="fas fa-plus-circle me-1"></i>Available Tabs
+                        </h6>
+                        <div id="availableTabsList" class="border rounded p-3 mb-3" style="min-height: 200px;">
+                            <div class="text-muted text-center">Loading...</div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="alert alert-info">
+                    <i class="fas fa-info-circle me-2"></i>
+                    <strong>Note:</strong> The "All" tab always contains all folders and cannot be modified.
+                    Manual assignments will override automatic categorization.
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                <button type="button" class="btn btn-primary" onclick="refreshDashboard()">
+                    <i class="fas fa-sync-alt me-1"></i>Refresh Dashboard
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Delete Confirmation Modal -->
+<div class="modal fade" id="deleteFolderModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header bg-danger text-white">
+                <h5 class="modal-title">
+                    <i class="fas fa-exclamation-triangle me-2"></i>Confirm Folder Deletion
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="alert alert-warning">
+                    <i class="fas fa-warning me-2"></i>
+                    <strong>Warning:</strong> This action cannot be undone!
+                </div>
+
+                <p>Are you sure you want to delete the folder <strong id="deleteFolderName"
+                        class="text-danger"></strong>?</p>
+
+                <div class="mb-3">
+                    <h6 class="fw-bold">This will permanently delete:</h6>
+                    <ul class="list-unstyled ms-3">
+                        <li><i class="fas fa-images text-primary me-2"></i><span id="deleteImageCount">0</span> images
+                        </li>
+                        <li><i class="fas fa-folder text-warning me-2"></i>The entire folder and all its contents</li>
+                        <li><i class="fas fa-cog text-info me-2"></i>All manual tab assignments for this folder</li>
+                    </ul>
+                </div>
+
+                <div class="form-check">
+                    <input class="form-check-input" type="checkbox" id="confirmDeletion">
+                    <label class="form-check-label fw-bold text-danger" for="confirmDeletion">
+                        I understand this action cannot be undone
+                    </label>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-danger" id="confirmDeleteBtn" onclick="deleteFolder()" disabled>
+                    <i class="fas fa-trash me-1"></i>Delete Folder
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+    document.addEventListener('DOMContentLoaded', function () {
+        // Add hover effects to class cards
+        const classCards = document.querySelectorAll('.class-card');
+        classCards.forEach(card => {
+            card.addEventListener('mouseenter', function () {
+                this.style.transform = 'translateY(-5px)';
+                this.style.transition = 'transform 0.2s ease, box-shadow 0.2s ease';
+                this.style.boxShadow = '0 8px 25px rgba(0,0,0,0.15)';
+            });
+
+            card.addEventListener('mouseleave', function () {
+                this.style.transform = 'translateY(0)';
+                this.style.boxShadow = '';
+            });
+        });
+
+        // Add tab switching animation
+        const tabButtons = document.querySelectorAll('[data-bs-toggle="tab"]');
+        tabButtons.forEach(button => {
+            button.addEventListener('shown.bs.tab', function (e) {
+                const targetPane = document.querySelector(e.target.getAttribute('data-bs-target'));
+                if (targetPane) {
+                    targetPane.style.opacity = '0';
+                    targetPane.style.transform = 'translateY(20px)';
+
+                    setTimeout(() => {
+                        targetPane.style.transition = 'opacity 0.3s ease, transform 0.3s ease';
+                        targetPane.style.opacity = '1';
+                        targetPane.style.transform = 'translateY(0)';
+                    }, 50);
+                }
+            });
+        });
+
+        // Search functionality within tabs
+        function addSearchToTabs() {
+            const searchContainer = document.createElement('div');
+            searchContainer.className = 'mb-3';
+            searchContainer.innerHTML = `
+            <div class="input-group">
+                <span class="input-group-text">
+                    <i class="fas fa-search"></i>
+                </span>
+                <input type="text" class="form-control" id="folderSearch"
+                       placeholder="Search folders..." autocomplete="off">
+                <button class="btn btn-outline-secondary" type="button" id="clearSearch">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+        `;
+
+            const tabContent = document.getElementById('categoryTabsContent');
+            if (tabContent) {
+                tabContent.parentNode.insertBefore(searchContainer, tabContent);
+            }
+
+            // Search functionality
+            const searchInput = document.getElementById('folderSearch');
+            const clearButton = document.getElementById('clearSearch');
+
+            if (searchInput) {
+                searchInput.addEventListener('input', function () {
+                    const searchTerm = this.value.toLowerCase();
+                    filterFolders(searchTerm);
+                });
+            }
+
+            if (clearButton) {
+                clearButton.addEventListener('click', function () {
+                    searchInput.value = '';
+                    filterFolders('');
+                    searchInput.focus();
+                });
+            }
+        }
+
+        function filterFolders(searchTerm) {
+            const allCards = document.querySelectorAll('.class-card');
+            let visibleCount = 0;
+
+            allCards.forEach(card => {
+                const folderName = card.querySelector('.card-title').textContent.toLowerCase();
+                const cardContainer = card.closest('.col-md-6');
+
+                if (folderName.includes(searchTerm)) {
+                    cardContainer.style.display = '';
+                    visibleCount++;
+                } else {
+                    cardContainer.style.display = 'none';
+                }
+            });
+
+            // Show/hide empty state for each tab
+            const tabPanes = document.querySelectorAll('.tab-pane');
+            tabPanes.forEach(pane => {
+                const visibleCardsInPane = pane.querySelectorAll('.col-md-6:not([style*="display: none"])').length;
+                let emptyState = pane.querySelector('.search-empty-state');
+
+                if (searchTerm && visibleCardsInPane === 0) {
+                    if (!emptyState) {
+                        emptyState = document.createElement('div');
+                        emptyState.className = 'text-center py-4 search-empty-state';
+                        emptyState.innerHTML = `
+                        <div class="mb-3">
+                            <i class="fas fa-search fa-3x text-muted"></i>
+                        </div>
+                        <h5 class="text-muted">No folders found</h5>
+                        <p class="text-muted">Try adjusting your search terms.</p>
+                    `;
+                        pane.appendChild(emptyState);
+                    }
+                    emptyState.style.display = 'block';
+                } else if (emptyState) {
+                    emptyState.style.display = 'none';
+                }
+            });
+        }
+
+        // Initialize search functionality
+        addSearchToTabs();
+
+        // Initialize tab management functionality
+        initializeTabManagement();
+
+        // Initialize delete functionality
+        initializeDeleteFunctionality();
+
+        // Update tab badges when filtering
+        function updateTabBadges() {
+            const tabs = document.querySelectorAll('[data-bs-toggle="tab"]');
+            tabs.forEach(tab => {
+                const targetPaneId = tab.getAttribute('data-bs-target');
+                const targetPane = document.querySelector(targetPaneId);
+                if (targetPane) {
+                    const visibleCards = targetPane.querySelectorAll('.col-md-6:not([style*="display: none"])').length;
+                    const badge = tab.querySelector('.badge');
+                    if (badge) {
+                        const originalCount = badge.getAttribute('data-original-count') || badge.textContent;
+                        if (!badge.getAttribute('data-original-count')) {
+                            badge.setAttribute('data-original-count', badge.textContent);
+                        }
+                        badge.textContent = visibleCards;
+                    }
+                }
+            });
+        }
+
+        // Update badges on search
+        const searchInput = document.getElementById('folderSearch');
+        if (searchInput) {
+            searchInput.addEventListener('input', function () {
+                setTimeout(updateTabBadges, 100);
+            });
+        }
+    });
+
+    // Tab Management Functions
+    let currentManagingFolder = '';
+
+    function initializeTabManagement() {
+        // Tab management is initialized when needed
+        console.log('Tab management initialized');
+    }
+
+    function openTabManager(folderName) {
+        currentManagingFolder = folderName;
+        document.getElementById('currentFolderName').textContent = folderName;
+
+        // Show the modal
+        const modal = new bootstrap.Modal(document.getElementById('tabManagerModal'));
+        modal.show();
+
+        // Load tab information
+        loadTabInformation(folderName);
+    }
+
+    function loadTabInformation(folderName) {
+        // Show loading state
+        document.getElementById('currentTabsList').innerHTML = '<div class="text-muted text-center">Loading...</div>';
+        document.getElementById('availableTabsList').innerHTML = '<div class="text-muted text-center">Loading...</div>';
+
+        fetch(`/api/folder_tab_info/${encodeURIComponent(folderName)}`)
+            .then(response => response.json())
+            .then(data => {
+                if (data.status === 'success') {
+                    displayTabInformation(data.data);
+                } else {
+                    showToast('Failed to load tab information: ' + data.message, 'error');
+                }
+            })
+            .catch(error => {
+                console.error('Error loading tab information:', error);
+                showToast('Failed to load tab information', 'error');
+            });
+    }
+
+    function displayTabInformation(tabInfo) {
+        const currentTabsList = document.getElementById('currentTabsList');
+        const availableTabsList = document.getElementById('availableTabsList');
+
+        // Display current tabs
+        if (tabInfo.current_tabs && tabInfo.current_tabs.length > 0) {
+            currentTabsList.innerHTML = tabInfo.current_tabs.map(tabName => {
+                const isManuallyAdded = tabInfo.manually_added_to.includes(tabName);
+                const canRemove = tabName !== 'All';
+
+                return `
+                    <div class="d-flex justify-content-between align-items-center mb-2 p-2 border rounded">
+                        <div>
+                            <span class="fw-bold">${tabName}</span>
+                            ${isManuallyAdded ? '<span class="badge bg-info ms-2">Manual</span>' : '<span class="badge bg-secondary ms-2">Auto</span>'}
+                        </div>
+                        ${canRemove ? `
+                            <button class="btn btn-outline-danger btn-sm" onclick="removeFromTab('${tabName}')" title="Remove from this tab">
+                                <i class="fas fa-times"></i>
+                            </button>
+                        ` : '<span class="text-muted small">Required</span>'}
+                    </div>
+                `;
+            }).join('');
+        } else {
+            currentTabsList.innerHTML = '<div class="text-muted text-center">No tabs assigned</div>';
+        }
+
+        // Display available tabs (tabs not currently assigned)
+        const availableTabs = tabInfo.available_tabs.filter(tab =>
+            !tabInfo.current_tabs.includes(tab) && tab !== 'All'
+        );
+
+        if (availableTabs.length > 0) {
+            availableTabsList.innerHTML = availableTabs.map(tabName => {
+                const icons = {
+                    'Animals': 'fa-paw',
+                    'Vehicles': 'fa-car',
+                    'Food': 'fa-utensils',
+                    'Nature': 'fa-leaf',
+                    'Objects': 'fa-cube',
+                    'People': 'fa-users',
+                    'Sports': 'fa-football-ball',
+                    'Technology': 'fa-microchip'
+                };
+
+                return `
+                    <div class="d-flex justify-content-between align-items-center mb-2 p-2 border rounded">
+                        <div>
+                            <i class="fas ${icons[tabName] || 'fa-folder'} me-2"></i>
+                            <span class="fw-bold">${tabName}</span>
+                        </div>
+                        <button class="btn btn-outline-success btn-sm" onclick="addToTab('${tabName}')" title="Add to this tab">
+                            <i class="fas fa-plus"></i>
+                        </button>
+                    </div>
+                `;
+            }).join('');
+        } else {
+            availableTabsList.innerHTML = '<div class="text-muted text-center">All tabs assigned</div>';
+        }
+    }
+
+    function addToTab(tabName) {
+        if (!currentManagingFolder) return;
+
+        fetch('/api/add_folder_to_tab', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                folder_name: currentManagingFolder,
+                tab_name: tabName
+            })
+        })
+            .then(response => response.json())
+            .then(data => {
+                if (data.status === 'success') {
+                    showToast(data.message, 'success');
+                    loadTabInformation(currentManagingFolder); // Reload the tab information
+                } else {
+                    showToast('Failed to add to tab: ' + data.message, 'error');
+                }
+            })
+            .catch(error => {
+                console.error('Error adding to tab:', error);
+                showToast('Failed to add to tab', 'error');
+            });
+    }
+
+    function removeFromTab(tabName) {
+        if (!currentManagingFolder) return;
+
+        fetch('/api/remove_folder_from_tab', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                folder_name: currentManagingFolder,
+                tab_name: tabName
+            })
+        })
+            .then(response => response.json())
+            .then(data => {
+                if (data.status === 'success') {
+                    showToast(data.message, 'success');
+                    loadTabInformation(currentManagingFolder); // Reload the tab information
+                } else {
+                    showToast('Failed to remove from tab: ' + data.message, 'error');
+                }
+            })
+            .catch(error => {
+                console.error('Error removing from tab:', error);
+                showToast('Failed to remove from tab', 'error');
+            });
+    }
+
+    function refreshDashboard() {
+        // Close the modal
+        const modal = bootstrap.Modal.getInstance(document.getElementById('tabManagerModal'));
+        if (modal) {
+            modal.hide();
+        }
+
+        // Reload the page to refresh the dashboard
+        window.location.reload();
+    }
+
+    // Folder Deletion Functions
+    let currentDeletingFolder = '';
+    let currentDeletingImageCount = 0;
+
+    function initializeDeleteFunctionality() {
+        // Set up the confirmation checkbox listener
+        const confirmCheckbox = document.getElementById('confirmDeletion');
+        const confirmButton = document.getElementById('confirmDeleteBtn');
+
+        if (confirmCheckbox && confirmButton) {
+            confirmCheckbox.addEventListener('change', function () {
+                confirmButton.disabled = !this.checked;
+            });
+        }
+
+        // Reset modal when it's hidden
+        const deleteModal = document.getElementById('deleteFolderModal');
+        if (deleteModal) {
+            deleteModal.addEventListener('hidden.bs.modal', function () {
+                resetDeleteModal();
+            });
+        }
+    }
+
+    function openDeleteConfirmation(folderName, imageCount) {
+        currentDeletingFolder = folderName;
+        currentDeletingImageCount = imageCount;
+
+        // Update modal content
+        document.getElementById('deleteFolderName').textContent = folderName;
+        document.getElementById('deleteImageCount').textContent = imageCount;
+
+        // Reset the modal state
+        resetDeleteModal();
+
+        // Show the modal
+        const modal = new bootstrap.Modal(document.getElementById('deleteFolderModal'));
+        modal.show();
+    }
+
+    function resetDeleteModal() {
+        const confirmCheckbox = document.getElementById('confirmDeletion');
+        const confirmButton = document.getElementById('confirmDeleteBtn');
+
+        if (confirmCheckbox) {
+            confirmCheckbox.checked = false;
+        }
+        if (confirmButton) {
+            confirmButton.disabled = true;
+            confirmButton.innerHTML = '<i class="fas fa-trash me-1"></i>Delete Folder';
+        }
+    }
+
+    function deleteFolder() {
+        if (!currentDeletingFolder) {
+            showToast('No folder selected for deletion', 'error');
+            return;
+        }
+
+        const confirmButton = document.getElementById('confirmDeleteBtn');
+        if (confirmButton) {
+            confirmButton.disabled = true;
+            confirmButton.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>Deleting...';
+        }
+
+        fetch('/api/delete_folder', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-Requested-With': 'XMLHttpRequest'
+            },
+            body: JSON.stringify({
+                folder_name: currentDeletingFolder
+            })
+        })
+            .then(response => response.json())
+            .then(data => {
+                if (data.status === 'success') {
+                    showToast(data.message, 'success');
+
+                    // Close the modal
+                    const modal = bootstrap.Modal.getInstance(document.getElementById('deleteFolderModal'));
+                    if (modal) {
+                        modal.hide();
+                    }
+
+                    // Remove the folder card from the dashboard with animation
+                    removeFolderFromDashboard(currentDeletingFolder);
+
+                    // Update summary statistics
+                    updateDashboardSummary(-1, -currentDeletingImageCount);
+
+                } else {
+                    showToast('Failed to delete folder: ' + data.message, 'error');
+                    resetDeleteModal();
+                }
+            })
+            .catch(error => {
+                console.error('Error deleting folder:', error);
+                showToast('Failed to delete folder. Please try again.', 'error');
+                resetDeleteModal();
+            })
+            .finally(() => {
+                // Reset current selection
+                currentDeletingFolder = '';
+                currentDeletingImageCount = 0;
+            });
+    }
+
+    function removeFolderFromDashboard(folderName) {
+        // Find all folder cards with this name across all tabs
+        const allCards = document.querySelectorAll('.class-card');
+
+        allCards.forEach(card => {
+            const titleElement = card.querySelector('.card-title');
+            if (titleElement && titleElement.textContent.includes(folderName)) {
+                const cardContainer = card.closest('.col-md-6, .col-lg-4');
+                if (cardContainer) {
+                    // Add fade out animation
+                    cardContainer.style.transition = 'opacity 0.5s ease, transform 0.5s ease';
+                    cardContainer.style.opacity = '0';
+                    cardContainer.style.transform = 'scale(0.8)';
+
+                    // Remove the card after animation
+                    setTimeout(() => {
+                        cardContainer.remove();
+
+                        // Check if any tabs are now empty and update accordingly
+                        updateEmptyTabStates();
+                    }, 500);
+                }
+            }
+        });
+    }
+
+    function updateEmptyTabStates() {
+        const tabPanes = document.querySelectorAll('.tab-pane');
+        tabPanes.forEach(pane => {
+            const visibleCards = pane.querySelectorAll('.class-card').length;
+            const tabId = pane.id;
+            const tabButton = document.querySelector(`[data-bs-target="#${tabId}"]`);
+
+            if (visibleCards === 0 && !pane.id.includes('all')) {
+                // Show empty state for this tab
+                if (!pane.querySelector('.empty-tab-state')) {
+                    const emptyState = document.createElement('div');
+                    emptyState.className = 'text-center py-4 empty-tab-state';
+                    emptyState.innerHTML = `
+                        <div class="mb-3">
+                            <i class="fas fa-folder-open fa-3x text-muted"></i>
+                        </div>
+                        <h5 class="text-muted">No folders in this category</h5>
+                        <p class="text-muted">All folders have been deleted or moved to other categories.</p>
+                    `;
+                    pane.appendChild(emptyState);
+                }
+            }
+
+            // Update tab badge
+            if (tabButton) {
+                const badge = tabButton.querySelector('.badge');
+                if (badge) {
+                    badge.textContent = visibleCards;
+                }
+            }
+        });
+    }
+
+    function updateDashboardSummary(classDelta, imageDelta) {
+        // Update the summary statistics
+        const totalClassesElement = document.querySelector('.text-primary');
+        const totalImagesElement = document.querySelector('.text-success');
+        const avgElement = document.querySelector('.text-info');
+
+        if (totalClassesElement && totalImagesElement) {
+            const currentClasses = parseInt(totalClassesElement.textContent) + classDelta;
+            const currentImages = parseInt(totalImagesElement.textContent) + imageDelta;
+
+            totalClassesElement.textContent = Math.max(0, currentClasses);
+            totalImagesElement.textContent = Math.max(0, currentImages);
+
+            if (avgElement && currentClasses > 0) {
+                const avg = (currentImages / currentClasses).toFixed(1);
+                avgElement.textContent = avg;
+            } else if (avgElement) {
+                avgElement.textContent = '0';
+            }
+        }
+
+        // If no classes left, show the empty state
+        if (parseInt(totalClassesElement?.textContent || '0') === 0) {
+            setTimeout(() => {
+                window.location.reload(); // Reload to show the "No Image Classes Found" message
+            }, 1000);
+        }
+    }
+</script>
+
+<style>
+    .nav-tabs .nav-link {
+        border-radius: 8px 8px 0 0;
+        margin-right: 2px;
+        transition: all 0.2s ease;
+    }
+
+    .nav-tabs .nav-link:hover {
+        background-color: #f8f9fa;
+        border-color: #dee2e6 #dee2e6 #fff;
+    }
+
+    .nav-tabs .nav-link.active {
+        background-color: #fff;
+        border-color: #dee2e6 #dee2e6 #fff;
+        font-weight: 600;
+    }
+
+    .tab-content {
+        border: 1px solid #dee2e6;
+        border-top: none;
+        border-radius: 0 0 8px 8px;
+        padding: 1.5rem;
+        background-color: #fff;
+    }
+
+    .class-card {
+        transition: transform 0.2s ease, box-shadow 0.2s ease;
+        border: 1px solid #e9ecef;
+    }
+
+    .class-card:hover {
+        border-color: #007bff;
+    }
+
+    .badge {
+        font-size: 0.75em;
+    }
+
+    .input-group .form-control:focus {
+        border-color: #007bff;
+        box-shadow: 0 0 0 0.2rem rgba(0, 123, 255, 0.25);
+    }
+
+    .search-empty-state {
+        background-color: #f8f9fa;
+        border-radius: 8px;
+        margin: 1rem 0;
+    }
+
+    @media (max-width: 768px) {
+        .nav-tabs {
+            flex-wrap: wrap;
+        }
+
+        .nav-tabs .nav-link {
+            font-size: 0.875rem;
+            padding: 0.5rem 0.75rem;
+        }
+
+        .tab-content {
+            padding: 1rem;
+        }
+    }
+</style>
 {% endblock %}

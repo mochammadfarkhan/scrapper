@@ -4,7 +4,7 @@
 
 {% block content %}
 <div class="row justify-content-center">
-    <div class="col-md-8 col-lg-6">
+    <div class="col-md-8 col-lg-6" id="formSection">
         <div class="card shadow">
             <div class="card-header bg-primary text-white">
                 <h4 class="card-title mb-0">
@@ -12,13 +12,14 @@
                 </h4>
             </div>
             <div class="card-body">
-                <form method="POST" action="{{ url_for('scrape_images') }}" id="scrapeForm">
+                <div id="scrapeForm" class="needs-validation" novalidate>
                     <div class="mb-3">
                         <label for="keywords" class="form-label">
                             <i class="fas fa-tags me-1"></i>Search Keywords *
                         </label>
-                        <input type="text" class="form-control" id="keywords" name="keywords" 
-                               placeholder="e.g., cats, dogs, cars" required>
+                        <input type="text" class="form-control" id="keywords" name="keywords"
+                            placeholder="e.g., cats, dogs, cars" required>
+                        <div class="invalid-feedback">Please enter search keywords</div>
                         <div class="form-text">Enter keywords to search for images</div>
                     </div>
 
@@ -26,8 +27,9 @@
                         <label for="class_name" class="form-label">
                             <i class="fas fa-folder me-1"></i>Class/Category Name *
                         </label>
-                        <input type="text" class="form-control" id="class_name" name="class_name" 
-                               placeholder="e.g., animals, vehicles" required>
+                        <input type="text" class="form-control" id="class_name" name="class_name"
+                            placeholder="e.g., animals, vehicles" required>
+                        <div class="invalid-feedback">Please enter a class/category name</div>
                         <div class="form-text">Name for organizing scraped images</div>
                     </div>
 
@@ -35,8 +37,8 @@
                         <label for="destination_folder" class="form-label">
                             <i class="fas fa-folder-open me-1"></i>Destination Folder
                         </label>
-                        <input type="text" class="form-control" id="destination_folder" name="destination_folder" 
-                               placeholder="Leave empty for default folder">
+                        <input type="text" class="form-control" id="destination_folder" name="destination_folder"
+                            placeholder="Leave empty for default folder">
                         <div class="form-text">Optional: Custom folder path (default: scraped_images)</div>
                     </div>
 
@@ -55,15 +57,16 @@
                     </div>
 
                     <div class="d-grid gap-2">
-                        <button type="submit" class="btn btn-primary btn-lg" id="submitBtn">
+                        <button type="button" class="btn btn-primary btn-lg" id="startScrapingBtn"
+                            onclick="startScraping()">
                             <i class="fas fa-download me-2"></i>Start Scraping
                         </button>
                     </div>
-                </form>
+                </div>
             </div>
         </div>
 
-        <div class="card mt-4">
+        <div class="card mt-4" id="howItWorksCard">
             <div class="card-body">
                 <h5 class="card-title">
                     <i class="fas fa-info-circle me-2"></i>How it works
@@ -72,9 +75,101 @@
                     <li><i class="fas fa-check text-success me-2"></i>Enter search keywords</li>
                     <li><i class="fas fa-check text-success me-2"></i>Specify a category name for organization</li>
                     <li><i class="fas fa-check text-success me-2"></i>Choose number of images to download</li>
-                    <li><i class="fas fa-check text-success me-2"></i>Images will be saved and organized by category</li>
+                    <li><i class="fas fa-check text-success me-2"></i>Images will be saved and organized by category
+                    </li>
                     <li><i class="fas fa-check text-success me-2"></i>Use the dashboard to manage your images</li>
                 </ul>
+            </div>
+        </div>
+    </div>
+
+    <!-- Progress Display Section (Initially Hidden) -->
+    <div class="col-md-10" id="progressSection" style="display: none;">
+        <div class="card shadow">
+            <div class="card-header bg-info text-white">
+                <h4 class="card-title mb-0">
+                    <i class="fas fa-cog fa-spin me-2"></i>Scraping in Progress
+                </h4>
+            </div>
+            <div class="card-body">
+                <div class="text-center mb-4">
+                    <div class="spinner-border text-primary" role="status" id="loadingSpinner">
+                        <span class="visually-hidden">Loading...</span>
+                    </div>
+                </div>
+
+                <div class="progress mb-3" style="height: 25px;">
+                    <div class="progress-bar progress-bar-striped progress-bar-animated" role="progressbar"
+                        style="width: 0%" id="progressBar">
+                        <span id="progressText">Initializing...</span>
+                    </div>
+                </div>
+
+                <div class="alert alert-info" role="alert" id="statusMessage">
+                    <i class="fas fa-info-circle me-2"></i>
+                    <span id="statusText">Preparing to start scraping...</span>
+                </div>
+
+                <!-- Real-time Logs Section -->
+                <div class="card mt-4">
+                    <div class="card-header d-flex justify-content-between align-items-center">
+                        <h6 class="mb-0">
+                            <i class="fas fa-terminal me-2"></i>Real-time Logs
+                        </h6>
+                        <div class="btn-group btn-group-sm">
+                            <button class="btn btn-outline-secondary" id="toggleLogs" onclick="toggleLogDisplay()">
+                                <i class="fas fa-eye me-1"></i>Show Details
+                            </button>
+                            <button class="btn btn-outline-primary" id="downloadLogs" onclick="downloadLogs()" disabled>
+                                <i class="fas fa-download me-1"></i>Download
+                            </button>
+                            <button class="btn btn-outline-danger" id="clearLogs" onclick="clearLogs()" disabled>
+                                <i class="fas fa-trash me-1"></i>Clear
+                            </button>
+                        </div>
+                    </div>
+                    <div class="card-body p-0" id="logsContainer" style="display: none;">
+                        <div class="log-display" id="logDisplay">
+                            <div class="text-muted text-center p-3">
+                                <i class="fas fa-clock me-2"></i>Waiting for logs...
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="text-center" id="completionActions" style="display: none;">
+                    <div class="mb-3">
+                        <i class="fas fa-check-circle fa-3x text-success"></i>
+                    </div>
+                    <h5 class="text-success">Scraping Completed!</h5>
+                    <div class="d-grid gap-2 d-md-flex justify-content-md-center">
+                        <a href="{{ url_for('dashboard') }}" class="btn btn-primary">
+                            <i class="fas fa-th-large me-1"></i>View Dashboard
+                        </a>
+                        <button class="btn btn-outline-primary" onclick="resetToForm()">
+                            <i class="fas fa-search me-1"></i>Scrape More Images
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="card mt-4">
+            <div class="card-body">
+                <h6 class="card-title">
+                    <i class="fas fa-clock me-2"></i>What's happening?
+                </h6>
+                <ul class="list-unstyled small">
+                    <li><i class="fas fa-check text-success me-2"></i>Setting up web scraper</li>
+                    <li><i class="fas fa-check text-success me-2"></i>Searching Google Images</li>
+                    <li><i class="fas fa-check text-success me-2"></i>Downloading images</li>
+                    <li><i class="fas fa-check text-success me-2"></i>Organizing by category</li>
+                    <li><i class="fas fa-check text-success me-2"></i>Validating image files</li>
+                </ul>
+                <p class="text-muted small mb-0">
+                    <i class="fas fa-info-circle me-1"></i>
+                    This process may take a few minutes depending on the number of images requested.
+                </p>
             </div>
         </div>
     </div>
@@ -82,11 +177,653 @@
 {% endblock %}
 
 {% block scripts %}
+<style>
+    .log-display {
+        height: 400px;
+        overflow-y: auto;
+        background-color: #1e1e1e;
+        color: #ffffff;
+        font-family: 'Courier New', monospace;
+        font-size: 0.875rem;
+        padding: 1rem;
+        border-radius: 0 0 0.375rem 0.375rem;
+    }
+
+    .log-entry {
+        margin-bottom: 0.25rem;
+        padding: 0.25rem 0;
+        border-left: 3px solid transparent;
+        padding-left: 0.5rem;
+    }
+
+    .log-entry.log-info {
+        border-left-color: #17a2b8;
+        color: #b3d9ff;
+    }
+
+    .log-entry.log-success {
+        border-left-color: #28a745;
+        color: #b3ffb3;
+    }
+
+    .log-entry.log-warning {
+        border-left-color: #ffc107;
+        color: #fff3cd;
+    }
+
+    .log-entry.log-error {
+        border-left-color: #dc3545;
+        color: #ffb3b3;
+    }
+
+    .log-entry.log-debug {
+        border-left-color: #6c757d;
+        color: #d1d1d1;
+    }
+
+    .log-timestamp {
+        color: #6c757d;
+        font-size: 0.8rem;
+    }
+
+    .log-level {
+        font-weight: bold;
+        margin-right: 0.5rem;
+    }
+
+    .log-message {
+        word-wrap: break-word;
+    }
+
+    .log-display::-webkit-scrollbar {
+        width: 8px;
+    }
+
+    .log-display::-webkit-scrollbar-track {
+        background: #2d2d2d;
+    }
+
+    .log-display::-webkit-scrollbar-thumb {
+        background: #555;
+        border-radius: 4px;
+    }
+
+    .log-display::-webkit-scrollbar-thumb:hover {
+        background: #777;
+    }
+</style>
+
 <script>
-document.getElementById('scrapeForm').addEventListener('submit', function(e) {
-    const submitBtn = document.getElementById('submitBtn');
-    submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Starting...';
-    submitBtn.disabled = true;
-});
+    let progressInterval;
+    let logEventSource;
+    let isCompleted = false;
+    let logsVisible = false;
+
+    // Initialize page and check for running scraping
+    document.addEventListener('DOMContentLoaded', function () {
+        console.log('DOM loaded, setting up scraping interface');
+
+        // Check if scraping is already running on page load
+        checkInitialScrapingStatus();
+    });
+
+    // Main function to start scraping
+    function startScraping() {
+        console.log('Start scraping button clicked');
+
+        // Validate form inputs
+        if (!validateInputs()) {
+            console.log('Input validation failed');
+            return;
+        }
+
+        console.log('Input validation passed');
+
+        // Get button and update UI
+        const startBtn = document.getElementById('startScrapingBtn');
+        if (startBtn) {
+            startBtn.disabled = true;
+            startBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Starting...';
+        }
+
+        // Collect form data
+        const formData = collectFormData();
+        console.log('Form data collected:', formData);
+
+        // Send AJAX request
+        sendScrapingRequest(formData);
+    }
+
+    function validateInputs() {
+        const keywords = document.getElementById('keywords').value.trim();
+        const className = document.getElementById('class_name').value.trim();
+
+        // Clear previous validation
+        clearValidationErrors();
+
+        let isValid = true;
+
+        if (!keywords) {
+            showValidationError('keywords', 'Please enter search keywords');
+            isValid = false;
+        }
+
+        if (!className) {
+            showValidationError('class_name', 'Please enter a class/category name');
+            isValid = false;
+        }
+
+        return isValid;
+    }
+
+    function collectFormData() {
+        return {
+            keywords: document.getElementById('keywords').value.trim(),
+            class_name: document.getElementById('class_name').value.trim(),
+            destination_folder: document.getElementById('destination_folder').value.trim(),
+            max_images: document.getElementById('max_images').value
+        };
+    }
+
+    function sendScrapingRequest(formData) {
+        console.log('Sending scraping request...');
+
+        // Convert to URLSearchParams for proper form encoding
+        const params = new URLSearchParams();
+        Object.keys(formData).forEach(key => {
+            params.append(key, formData[key]);
+        });
+
+        fetch('/scrape', {
+            method: 'POST',
+            body: params,
+            headers: {
+                'X-Requested-With': 'XMLHttpRequest',
+                'Content-Type': 'application/x-www-form-urlencoded'
+            }
+        })
+            .then(response => {
+                console.log('Response received:', response.status, response.statusText);
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                return response.json();
+            })
+            .then(data => {
+                console.log('JSON response:', data);
+                handleScrapingResponse(data);
+            })
+            .catch(error => {
+                console.error('Request failed:', error);
+                handleScrapingError(error.message);
+            });
+    }
+
+    function handleScrapingResponse(data) {
+        if (data.status === 'success') {
+            console.log('Scraping started successfully');
+            showProgressSection();
+            startProgressMonitoring();
+        } else {
+            // Check if error is because scraping is already running
+            if (data.message && data.message.includes('already in progress')) {
+                console.log('Scraping already in progress, showing progress section');
+                showProgressSection();
+                startProgressMonitoring();
+            } else {
+                console.log('Scraping failed:', data.message);
+                handleScrapingError(data.message || 'Unknown error occurred');
+            }
+        }
+    }
+
+    function handleScrapingError(errorMessage) {
+        alert('Error: ' + errorMessage);
+        resetStartButton();
+    }
+
+    function resetStartButton() {
+        const startBtn = document.getElementById('startScrapingBtn');
+        if (startBtn) {
+            startBtn.disabled = false;
+            startBtn.innerHTML = '<i class="fas fa-download me-2"></i>Start Scraping';
+        }
+    }
+
+    function showValidationError(fieldId, message) {
+        const field = document.getElementById(fieldId);
+        if (field) {
+            field.classList.add('is-invalid');
+
+            // Find or create error message element
+            let errorElement = field.parentNode.querySelector('.invalid-feedback');
+            if (errorElement) {
+                errorElement.textContent = message;
+            }
+        }
+    }
+
+    function clearValidationErrors() {
+        const fields = ['keywords', 'class_name'];
+        fields.forEach(fieldId => {
+            const field = document.getElementById(fieldId);
+            if (field) {
+                field.classList.remove('is-invalid');
+            }
+        });
+    }
+
+    function showProgressSection() {
+        console.log('showProgressSection() called');
+        const formSection = document.getElementById('formSection');
+        const progressSection = document.getElementById('progressSection');
+
+        console.log('formSection found:', !!formSection);
+        console.log('progressSection found:', !!progressSection);
+
+        if (formSection && progressSection) {
+            console.log('Hiding form section and showing progress section');
+            formSection.style.display = 'none';
+            progressSection.style.display = 'block';
+            console.log('Section visibility changed successfully');
+        } else {
+            console.error('ERROR: Could not find required sections');
+            console.error('formSection:', formSection);
+            console.error('progressSection:', progressSection);
+        }
+    }
+
+    function resetToForm() {
+        console.log('Resetting to form view');
+
+        // Reset form inputs
+        document.getElementById('keywords').value = '';
+        document.getElementById('class_name').value = '';
+        document.getElementById('destination_folder').value = '';
+        document.getElementById('max_images').value = '20';
+
+        // Clear validation errors
+        clearValidationErrors();
+
+        // Reset start button
+        resetStartButton();
+
+        // Reset progress variables
+        isCompleted = false;
+        logsVisible = false;
+
+        // Close log stream if open
+        if (logEventSource) {
+            logEventSource.close();
+            logEventSource = null;
+        }
+
+        // Clear progress interval
+        if (progressInterval) {
+            clearInterval(progressInterval);
+        }
+
+        // Reset progress display
+        resetProgressDisplay();
+
+        // Show form section and hide progress
+        document.getElementById('progressSection').style.display = 'none';
+        document.getElementById('formSection').style.display = 'block';
+    }
+
+    function resetProgressDisplay() {
+        // Reset progress bar
+        const progressBar = document.getElementById('progressBar');
+        const progressText = document.getElementById('progressText');
+        if (progressBar && progressText) {
+            progressBar.style.width = '0%';
+            progressBar.className = 'progress-bar progress-bar-striped progress-bar-animated';
+            progressText.textContent = 'Initializing...';
+        }
+
+        // Reset status message
+        const statusMessage = document.getElementById('statusMessage');
+        const statusText = document.getElementById('statusText');
+        if (statusMessage && statusText) {
+            statusMessage.className = 'alert alert-info';
+            statusText.textContent = 'Preparing to start scraping...';
+        }
+
+        // Reset spinner
+        const loadingSpinner = document.getElementById('loadingSpinner');
+        if (loadingSpinner) {
+            loadingSpinner.style.display = 'block';
+        }
+
+        // Hide completion actions
+        const completionActions = document.getElementById('completionActions');
+        if (completionActions) {
+            completionActions.style.display = 'none';
+        }
+
+        // Reset logs
+        const logDisplay = document.getElementById('logDisplay');
+        const logsContainer = document.getElementById('logsContainer');
+        const toggleButton = document.getElementById('toggleLogs');
+        if (logDisplay && logsContainer && toggleButton) {
+            logDisplay.innerHTML = '<div class="text-muted text-center p-3"><i class="fas fa-clock me-2"></i>Waiting for logs...</div>';
+            logsContainer.style.display = 'none';
+            toggleButton.innerHTML = '<i class="fas fa-eye me-1"></i>Show Details';
+        }
+
+        // Reset log controls
+        const downloadLogs = document.getElementById('downloadLogs');
+        const clearLogs = document.getElementById('clearLogs');
+        if (downloadLogs) downloadLogs.disabled = true;
+        if (clearLogs) clearLogs.disabled = true;
+    }
+
+    function checkInitialScrapingStatus() {
+        console.log('Checking initial scraping status...');
+        fetch('/api/scraping_status')
+            .then(response => response.json())
+            .then(data => {
+                console.log('Initial status:', data);
+                if (data.is_running) {
+                    console.log('Scraping is already running, showing progress section');
+                    showProgressSection();
+                    startProgressMonitoring();
+                } else {
+                    console.log('No scraping in progress, showing form');
+                }
+            })
+            .catch(error => {
+                console.error('Error checking initial status:', error);
+                // If there's an error, default to showing the form
+            });
+    }
+
+    function startProgressMonitoring() {
+        updateProgress(); // Initial update
+        progressInterval = setInterval(updateProgress, 2000); // Update every 2 seconds
+    }
+
+    function updateProgress() {
+        fetch('/api/scraping_status')
+            .then(response => response.json())
+            .then(data => {
+                console.log('Progress update received:', data);
+                const statusText = document.getElementById('statusText');
+                const progressBar = document.getElementById('progressBar');
+                const progressText = document.getElementById('progressText');
+                const loadingSpinner = document.getElementById('loadingSpinner');
+                const completionActions = document.getElementById('completionActions');
+                const statusMessage = document.getElementById('statusMessage');
+
+                if (statusText) {
+                    statusText.textContent = data.progress || 'Waiting...';
+
+                    if (data.is_running) {
+                        // Still running
+                        console.log('Scraping still running');
+                        progressBar.style.width = '50%';
+                        progressText.textContent = 'In Progress...';
+                        statusMessage.className = 'alert alert-info';
+                        // Enable log controls
+                        document.getElementById('downloadLogs').disabled = false;
+                        document.getElementById('clearLogs').disabled = false;
+                    } else {
+                        // Scraping is not running - check if it completed or had an error
+                        console.log('Scraping is not running, checking completion status');
+
+                        if (data.progress && (data.progress.includes('Completed') || data.progress.includes('completed') || data.progress.includes('Downloaded'))) {
+                            // Successfully completed
+                            console.log('Scraping completed successfully');
+                            progressBar.style.width = '100%';
+                            progressBar.className = 'progress-bar bg-success';
+                            progressText.textContent = 'Complete!';
+                            statusMessage.className = 'alert alert-success';
+
+                            if (!isCompleted) {
+                                isCompleted = true;
+                                loadingSpinner.style.display = 'none';
+                                completionActions.style.display = 'block';
+                                clearInterval(progressInterval);
+                                console.log('Progress monitoring stopped - scraping completed');
+                                // Keep log controls enabled
+                                document.getElementById('downloadLogs').disabled = false;
+                            }
+                        } else if (data.progress && data.progress.includes('Error')) {
+                            // Error occurred
+                            console.log('Scraping completed with error');
+                            progressBar.style.width = '100%';
+                            progressBar.className = 'progress-bar bg-danger';
+                            progressText.textContent = 'Error';
+                            statusMessage.className = 'alert alert-danger';
+                            loadingSpinner.style.display = 'none';
+                            clearInterval(progressInterval);
+                            console.log('Progress monitoring stopped - scraping failed');
+
+                            // Keep log controls enabled
+                            document.getElementById('downloadLogs').disabled = false;
+                        } else {
+                            // Scraping stopped but no clear completion message
+                            console.log('Scraping stopped, assuming completion');
+                            progressBar.style.width = '100%';
+                            progressBar.className = 'progress-bar bg-success';
+                            progressText.textContent = 'Complete!';
+                            statusMessage.className = 'alert alert-success';
+
+                            if (!isCompleted) {
+                                isCompleted = true;
+                                loadingSpinner.style.display = 'none';
+                                completionActions.style.display = 'block';
+                                clearInterval(progressInterval);
+                                console.log('Progress monitoring stopped - assuming completion');
+                                // Keep log controls enabled
+                                document.getElementById('downloadLogs').disabled = false;
+                            }
+                        }
+                    }
+                }
+            })
+            .catch(error => {
+                console.error('Error fetching status:', error);
+            });
+    }
+
+    function initializeLogStream() {
+        if (logEventSource) {
+            logEventSource.close();
+        }
+
+        console.log('Initializing log stream...');
+        logEventSource = new EventSource('/api/scraping_logs/stream');
+
+        logEventSource.onopen = function (event) {
+            console.log('Log stream opened successfully');
+            addStatusMessage('Connected to log stream', 'info');
+        };
+
+        logEventSource.onmessage = function (event) {
+            try {
+                const data = JSON.parse(event.data);
+                console.log('Received log data:', data);
+
+                switch (data.type) {
+                    case 'connected':
+                        console.log('Log stream connected:', data.message);
+                        addStatusMessage(data.message, 'success');
+                        break;
+
+                    case 'log':
+                        addLogEntry(data);
+                        break;
+
+                    case 'heartbeat':
+                        console.log('Heartbeat:', data);
+                        // Update status if needed
+                        break;
+
+                    case 'complete':
+                        console.log('Scraping completed:', data.message);
+                        addStatusMessage(data.message, 'success');
+                        logEventSource.close();
+                        break;
+
+                    case 'error':
+                        console.error('Log streaming error:', data.message);
+                        addStatusMessage('Error: ' + data.message, 'error');
+                        break;
+
+                    case 'disconnect':
+                        console.log('Log stream disconnected:', data.message);
+                        addStatusMessage(data.message, 'info');
+                        break;
+
+                    default:
+                        console.log('Unknown message type:', data);
+                }
+            } catch (error) {
+                console.error('Error parsing log data:', error, event.data);
+            }
+        };
+
+        logEventSource.onerror = function (event) {
+            console.error('Log stream error:', event);
+            addStatusMessage('Log stream connection error', 'error');
+
+            // Try to reconnect after 5 seconds
+            setTimeout(() => {
+                if (logsVisible && !isCompleted) {
+                    console.log('Attempting to reconnect log stream...');
+                    initializeLogStream();
+                }
+            }, 5000);
+        };
+    }
+
+    function addLogEntry(logData) {
+        const logDisplay = document.getElementById('logDisplay');
+
+        // Clear waiting message if present
+        if (logDisplay.querySelector('.text-muted')) {
+            logDisplay.innerHTML = '';
+        }
+
+        const logEntry = document.createElement('div');
+        logEntry.className = `log-entry log-${logData.level.toLowerCase()}`;
+
+        const timestamp = document.createElement('span');
+        timestamp.className = 'log-timestamp';
+        timestamp.textContent = logData.timestamp;
+
+        const level = document.createElement('span');
+        level.className = 'log-level';
+        level.textContent = `[${logData.level}]`;
+
+        const message = document.createElement('span');
+        message.className = 'log-message';
+        message.textContent = logData.message;
+
+        logEntry.appendChild(timestamp);
+        logEntry.appendChild(document.createTextNode(' '));
+        logEntry.appendChild(level);
+        logEntry.appendChild(document.createTextNode(' '));
+        logEntry.appendChild(message);
+
+        logDisplay.appendChild(logEntry);
+
+        // Auto-scroll to bottom
+        logDisplay.scrollTop = logDisplay.scrollHeight;
+
+        // Limit log entries to prevent memory issues (keep last 1000 entries)
+        const entries = logDisplay.querySelectorAll('.log-entry');
+        if (entries.length > 1000) {
+            entries[0].remove();
+        }
+    }
+
+    function addStatusMessage(message, type) {
+        const logDisplay = document.getElementById('logDisplay');
+
+        // Clear waiting message if present
+        if (logDisplay.querySelector('.text-muted')) {
+            logDisplay.innerHTML = '';
+        }
+
+        const statusEntry = document.createElement('div');
+        statusEntry.className = `log-entry log-${type}`;
+        statusEntry.style.fontStyle = 'italic';
+        statusEntry.style.opacity = '0.8';
+
+        const timestamp = document.createElement('span');
+        timestamp.className = 'log-timestamp';
+        timestamp.textContent = new Date().toLocaleString();
+
+        const level = document.createElement('span');
+        level.className = 'log-level';
+        level.textContent = `[SYSTEM]`;
+
+        const messageSpan = document.createElement('span');
+        messageSpan.className = 'log-message';
+        messageSpan.textContent = message;
+
+        statusEntry.appendChild(timestamp);
+        statusEntry.appendChild(document.createTextNode(' '));
+        statusEntry.appendChild(level);
+        statusEntry.appendChild(document.createTextNode(' '));
+        statusEntry.appendChild(messageSpan);
+
+        logDisplay.appendChild(statusEntry);
+
+        // Auto-scroll to bottom
+        logDisplay.scrollTop = logDisplay.scrollHeight;
+    }
+
+    function toggleLogDisplay() {
+        const logsContainer = document.getElementById('logsContainer');
+        const toggleButton = document.getElementById('toggleLogs');
+
+        if (logsVisible) {
+            logsContainer.style.display = 'none';
+            toggleButton.innerHTML = '<i class="fas fa-eye me-1"></i>Show Details';
+            logsVisible = false;
+        } else {
+            logsContainer.style.display = 'block';
+            toggleButton.innerHTML = '<i class="fas fa-eye-slash me-1"></i>Hide Details';
+            logsVisible = true;
+
+            // Initialize log streaming when first shown
+            if (!logEventSource) {
+                initializeLogStream();
+            }
+        }
+    }
+
+    function downloadLogs() {
+        window.open('/api/scraping_logs/download', '_blank');
+    }
+
+    function clearLogs() {
+        if (confirm('Are you sure you want to clear all logs?')) {
+            fetch('/api/scraping_logs/clear', { method: 'POST' })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.status === 'success') {
+                        const logDisplay = document.getElementById('logDisplay');
+                        logDisplay.innerHTML = '<div class="text-muted text-center p-3"><i class="fas fa-clock me-2"></i>Logs cleared...</div>';
+                    }
+                })
+                .catch(error => {
+                    console.error('Error clearing logs:', error);
+                });
+        }
+    }
+
+    // Clean up when page is unloaded
+    window.addEventListener('beforeunload', function () {
+        if (progressInterval) {
+            clearInterval(progressInterval);
+        }
+        if (logEventSource) {
+            logEventSource.close();
+        }
+    });
 </script>
 {% endblock %}

@@ -4,7 +4,10 @@ import threading
 import time
 import json
 from config import Config
-from utils import get_all_classes, get_images_in_class, delete_image, create_class_folder
+from utils import (get_all_classes, get_images_in_class, delete_image, create_class_folder,
+                   get_grouped_classes, get_grouped_classes_with_manual_assignments,
+                   add_folder_to_tab, remove_folder_from_tab, get_folder_tab_info,
+                   delete_folder, get_folder_info)
 from scraper import GoogleImageScraper
 from logger import scraping_logger
 
@@ -27,7 +30,8 @@ def index():
 def dashboard():
     """Image management dashboard."""
     classes = get_all_classes(app.config['UPLOAD_FOLDER'])
-    return render_template('dashboard.html', classes=classes)
+    grouped_classes = get_grouped_classes_with_manual_assignments(app.config['UPLOAD_FOLDER'])
+    return render_template('dashboard.html', classes=classes, grouped_classes=grouped_classes)
 
 @app.route('/view_images/<class_name>')
 def view_images(class_name):
@@ -40,9 +44,18 @@ def scrape_images():
     """Start image scraping process."""
     global scraping_status
 
+    # Check if this is an AJAX request
+    is_ajax = request.headers.get('X-Requested-With') == 'XMLHttpRequest'
+
     if scraping_status['is_running']:
-        flash('Scraping is already in progress. Please wait for it to complete.', 'warning')
-        return redirect(url_for('index'))
+        if is_ajax:
+            return jsonify({
+                'status': 'error',
+                'message': 'Scraping is already in progress. Please wait for it to complete.'
+            })
+        else:
+            flash('Scraping is already in progress. Please wait for it to complete.', 'warning')
+            return redirect(url_for('index'))
 
     # Get form data
     keywords = request.form.get('keywords', '').strip()
@@ -52,12 +65,24 @@ def scrape_images():
 
     # Validation
     if not keywords:
-        flash('Please enter search keywords.', 'error')
-        return redirect(url_for('index'))
+        if is_ajax:
+            return jsonify({
+                'status': 'error',
+                'message': 'Please enter search keywords.'
+            })
+        else:
+            flash('Please enter search keywords.', 'error')
+            return redirect(url_for('index'))
 
     if not class_name:
-        flash('Please enter a class/category name.', 'error')
-        return redirect(url_for('index'))
+        if is_ajax:
+            return jsonify({
+                'status': 'error',
+                'message': 'Please enter a class/category name.'
+            })
+        else:
+            flash('Please enter a class/category name.', 'error')
+            return redirect(url_for('index'))
 
     # Use default folder if not specified
     if not destination_folder:
@@ -105,8 +130,14 @@ def scrape_images():
     thread.daemon = True
     thread.start()
 
-    flash('Image scraping started! You can monitor progress below.', 'success')
-    return redirect(url_for('scraping_progress'))
+    if is_ajax:
+        return jsonify({
+            'status': 'success',
+            'message': 'Image scraping started! You can monitor progress below.'
+        })
+    else:
+        flash('Image scraping started! You can monitor progress below.', 'success')
+        return redirect(url_for('scraping_progress'))
 
 @app.route('/scraping_progress')
 def scraping_progress():
@@ -227,6 +258,16 @@ def api_scraping_logs_clear():
     scraping_logger.clear_logs()
     return jsonify({'status': 'success', 'message': 'Logs cleared'})
 
+@app.route('/api/scraping_reset', methods=['POST'])
+def api_scraping_reset():
+    """Reset scraping status (for testing purposes)."""
+    global scraping_status
+    scraping_status['is_running'] = False
+    scraping_status['progress'] = ''
+    scraping_status['current_task'] = None
+    scraping_logger.clear_logs()
+    return jsonify({'status': 'success', 'message': 'Scraping status reset'})
+
 @app.route('/api/scraping_logs/new')
 def api_scraping_logs_new():
     """Get only new logs since last request."""
@@ -239,13 +280,221 @@ def api_scraping_logs_new():
 @app.route('/delete_image/<class_name>/<filename>', methods=['POST'])
 def delete_image_route(class_name, filename):
     """Delete a specific image."""
-    success = delete_image(app.config['UPLOAD_FOLDER'], class_name, filename)
-    if success:
-        flash(f'Image {filename} deleted successfully.', 'success')
-    else:
-        flash(f'Failed to delete image {filename}.', 'error')
+    # Check if this is an AJAX request
+    is_ajax = request.headers.get('X-Requested-With') == 'XMLHttpRequest'
 
+    try:
+        success = delete_image(app.config['UPLOAD_FOLDER'], class_name, filename)
+
+        if success:
+            message = f'Image {filename} deleted successfully.'
+            if is_ajax:
+                return jsonify({
+                    'status': 'success',
+                    'message': message
+                })
+            else:
+                flash(message, 'success')
+        else:
+            error_message = f'Failed to delete image {filename}. File not found.'
+            if is_ajax:
+                return jsonify({
+                    'status': 'error',
+                    'message': error_message
+                }), 404
+            else:
+                flash(error_message, 'error')
+
+    except Exception as e:
+        error_message = f'Error deleting image {filename}: {str(e)}'
+        if is_ajax:
+            return jsonify({
+                'status': 'error',
+                'message': error_message
+            }), 500
+        else:
+            flash(error_message, 'error')
+
+    # For non-AJAX requests, redirect back to the view_images page
     return redirect(url_for('view_images', class_name=class_name))
+
+@app.route('/api/folder_tab_info/<folder_name>')
+def api_folder_tab_info(folder_name):
+    """Get tab information for a specific folder."""
+    try:
+        tab_info = get_folder_tab_info(folder_name, app.config['UPLOAD_FOLDER'])
+        return jsonify({
+            'status': 'success',
+            'data': tab_info
+        })
+    except Exception as e:
+        return jsonify({
+            'status': 'error',
+            'message': str(e)
+        }), 500
+
+@app.route('/api/add_folder_to_tab', methods=['POST'])
+def api_add_folder_to_tab():
+    """Add a folder to a specific tab."""
+    try:
+        data = request.get_json()
+        folder_name = data.get('folder_name')
+        tab_name = data.get('tab_name')
+
+        if not folder_name or not tab_name:
+            return jsonify({
+                'status': 'error',
+                'message': 'Missing folder_name or tab_name'
+            }), 400
+
+        success = add_folder_to_tab(folder_name, tab_name)
+        if success:
+            return jsonify({
+                'status': 'success',
+                'message': f'Folder "{folder_name}" added to "{tab_name}" tab'
+            })
+        else:
+            return jsonify({
+                'status': 'error',
+                'message': 'Failed to save tab assignment'
+            }), 500
+
+    except Exception as e:
+        return jsonify({
+            'status': 'error',
+            'message': str(e)
+        }), 500
+
+@app.route('/api/remove_folder_from_tab', methods=['POST'])
+def api_remove_folder_from_tab():
+    """Remove a folder from a specific tab."""
+    try:
+        data = request.get_json()
+        folder_name = data.get('folder_name')
+        tab_name = data.get('tab_name')
+
+        if not folder_name or not tab_name:
+            return jsonify({
+                'status': 'error',
+                'message': 'Missing folder_name or tab_name'
+            }), 400
+
+        if tab_name == 'All':
+            return jsonify({
+                'status': 'error',
+                'message': 'Cannot remove folders from the "All" tab'
+            }), 400
+
+        success = remove_folder_from_tab(folder_name, tab_name)
+        if success:
+            return jsonify({
+                'status': 'success',
+                'message': f'Folder "{folder_name}" removed from "{tab_name}" tab'
+            })
+        else:
+            return jsonify({
+                'status': 'error',
+                'message': 'Failed to save tab assignment'
+            }), 500
+
+    except Exception as e:
+        return jsonify({
+            'status': 'error',
+            'message': str(e)
+        }), 500
+
+@app.route('/api/folder_info/<folder_name>')
+def api_folder_info(folder_name):
+    """Get detailed information about a folder."""
+    try:
+        folder_info = get_folder_info(app.config['UPLOAD_FOLDER'], folder_name)
+        if folder_info:
+            return jsonify({
+                'status': 'success',
+                'data': folder_info
+            })
+        else:
+            return jsonify({
+                'status': 'error',
+                'message': 'Folder not found'
+            }), 404
+    except Exception as e:
+        return jsonify({
+            'status': 'error',
+            'message': str(e)
+        }), 500
+
+@app.route('/api/delete_folder', methods=['POST'])
+def api_delete_folder():
+    """Delete an entire folder and all its contents."""
+    try:
+        # Check if this is an AJAX request
+        is_ajax = request.headers.get('X-Requested-With') == 'XMLHttpRequest'
+
+        if is_ajax:
+            data = request.get_json()
+            folder_name = data.get('folder_name') if data else None
+        else:
+            folder_name = request.form.get('folder_name')
+
+        if not folder_name:
+            error_message = 'Missing folder_name'
+            if is_ajax:
+                return jsonify({
+                    'status': 'error',
+                    'message': error_message
+                }), 400
+            else:
+                flash(error_message, 'error')
+                return redirect(url_for('dashboard'))
+
+        # Get folder info before deletion for confirmation
+        folder_info = get_folder_info(app.config['UPLOAD_FOLDER'], folder_name)
+        if not folder_info:
+            error_message = f'Folder "{folder_name}" not found'
+            if is_ajax:
+                return jsonify({
+                    'status': 'error',
+                    'message': error_message
+                }), 404
+            else:
+                flash(error_message, 'error')
+                return redirect(url_for('dashboard'))
+
+        # Delete the folder
+        success = delete_folder(app.config['UPLOAD_FOLDER'], folder_name)
+        if success:
+            message = f'Folder "{folder_name}" and all its contents ({folder_info["image_count"]} images) have been deleted successfully.'
+            if is_ajax:
+                return jsonify({
+                    'status': 'success',
+                    'message': message,
+                    'deleted_folder': folder_info
+                })
+            else:
+                flash(message, 'success')
+        else:
+            error_message = f'Failed to delete folder "{folder_name}". It may be in use or you may not have permission.'
+            if is_ajax:
+                return jsonify({
+                    'status': 'error',
+                    'message': error_message
+                }), 500
+            else:
+                flash(error_message, 'error')
+
+    except Exception as e:
+        error_message = f'Error deleting folder: {str(e)}'
+        if is_ajax:
+            return jsonify({
+                'status': 'error',
+                'message': error_message
+            }), 500
+        else:
+            flash(error_message, 'error')
+
+    # For non-AJAX requests, redirect back to the dashboard
+    return redirect(url_for('dashboard'))
 
 @app.route('/images/<path:filename>')
 def serve_image(filename):
