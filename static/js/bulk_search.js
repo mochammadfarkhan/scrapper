@@ -32,6 +32,10 @@ function addTableRow() {
             <input type="text" class="form-control" name="className[]" placeholder="e.g., animals, vehicles" required>
             <div class="invalid-feedback">Please enter a class name</div>
         </td>
+        <td>
+            <input type="text" class="form-control" name="destinationFolder[]" placeholder="Optional: custom folder path">
+            <div class="form-text small">Leave empty to use global setting</div>
+        </td>
         <td class="text-center">
             <button type="button" class="btn btn-outline-danger btn-sm delete-row-btn" onclick="deleteTableRow('row-${rowCounter}')">
                 <i class="fas fa-trash"></i>
@@ -81,15 +85,18 @@ function validateBulkSearchForm() {
     rows.forEach((row, index) => {
         const keywordInput = row.querySelector('input[name="keyword[]"]');
         const classNameInput = row.querySelector('input[name="className[]"]');
+        const destinationFolderInput = row.querySelector('input[name="destinationFolder[]"]');
 
         const keyword = keywordInput.value.trim();
         const className = classNameInput.value.trim();
+        const destinationFolder = destinationFolderInput.value.trim();
 
         if (keyword && className) {
             validEntries++;
             // Clear any previous validation errors for valid rows
             keywordInput.classList.remove('is-invalid');
             classNameInput.classList.remove('is-invalid');
+            destinationFolderInput.classList.remove('is-invalid');
         } else {
             // Show validation errors for incomplete rows
             if (!keyword) {
@@ -100,6 +107,12 @@ function validateBulkSearchForm() {
                 classNameInput.classList.add('is-invalid');
                 isValid = false;
             }
+        }
+
+        // Validate destination folder format if provided
+        if (destinationFolder && !/^[a-zA-Z0-9_\-\s\/\\]*$/.test(destinationFolder)) {
+            destinationFolderInput.classList.add('is-invalid');
+            isValid = false;
         }
     });
 
@@ -127,11 +140,13 @@ function collectBulkSearchData() {
     rows.forEach(row => {
         const keyword = row.querySelector('input[name="keyword[]"]').value.trim();
         const className = row.querySelector('input[name="className[]"]').value.trim();
+        const destinationFolder = row.querySelector('input[name="destinationFolder[]"]').value.trim();
 
         if (keyword && className) {
             searchEntries.push({
                 keyword: keyword,
-                className: className
+                className: className,
+                destinationFolder: destinationFolder || null // null if empty, will use global setting
             });
         }
     });

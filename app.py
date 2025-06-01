@@ -224,19 +224,29 @@ def perform_bulk_search():
                 for i, entry in enumerate(search_entries, 1):
                     keyword = entry['keyword']
                     class_name = entry['className']
+                    entry_destination = entry.get('destinationFolder')
+
+                    # Use per-row destination folder if specified, otherwise use global setting
+                    current_destination = entry_destination if entry_destination else destination_folder
 
                     scraping_status['progress'] = f'Processing {i}/{len(search_entries)}: {keyword} -> {class_name}'
-                    scraping_logger.info(f"🔍 [{i}/{len(search_entries)}] Processing: '{keyword}' -> '{class_name}'")
+                    if entry_destination:
+                        scraping_logger.info(f"🔍 [{i}/{len(search_entries)}] Processing: '{keyword}' -> '{class_name}' (destination: {current_destination})")
+                    else:
+                        scraping_logger.info(f"🔍 [{i}/{len(search_entries)}] Processing: '{keyword}' -> '{class_name}'")
 
                     def progress_callback(message):
                         scraping_status['progress'] = f'[{i}/{len(search_entries)}] {message}'
 
                     try:
                         downloaded_count, class_folder = scraper.scrape_images(
-                            keyword, destination_folder, class_name, images_per_class, progress_callback
+                            keyword, current_destination, class_name, images_per_class, progress_callback
                         )
                         total_downloaded += downloaded_count
-                        scraping_logger.success(f"✅ [{i}/{len(search_entries)}] Completed: {downloaded_count} images for '{class_name}'")
+                        if entry_destination:
+                            scraping_logger.success(f"✅ [{i}/{len(search_entries)}] Completed: {downloaded_count} images for '{class_name}' in '{current_destination}'")
+                        else:
+                            scraping_logger.success(f"✅ [{i}/{len(search_entries)}] Completed: {downloaded_count} images for '{class_name}'")
 
                     except Exception as e:
                         scraping_logger.error(f"❌ [{i}/{len(search_entries)}] Failed '{keyword}' -> '{class_name}': {str(e)}")

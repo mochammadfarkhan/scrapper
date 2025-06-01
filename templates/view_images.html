@@ -26,6 +26,43 @@
     </div>
 </div>
 
+<!-- Image Filter Controls -->
+{% if images %}
+<div class="card mb-4">
+    <div class="card-body py-3">
+        <div class="row align-items-center">
+            <div class="col-md-6">
+                <div class="d-flex align-items-center">
+                    <label for="imageLimit" class="form-label me-3 mb-0">
+                        <i class="fas fa-filter me-1"></i>Show Images:
+                    </label>
+                    <select class="form-select" id="imageLimit" style="width: auto;" onchange="applyImageFilter()">
+                        <option value="all">All ({{ images|length }})</option>
+                        <option value="100">First 100</option>
+                        <option value="200">First 200</option>
+                        <option value="300">First 300</option>
+                        <option value="400">First 400</option>
+                        <option value="500">First 500</option>
+                        <option value="600">First 600</option>
+                        <option value="700">First 700</option>
+                        <option value="800">First 800</option>
+                        <option value="900">First 900</option>
+                        <option value="1000">First 1000</option>
+                        <option value="1100">First 1100</option>
+                        <option value="1200">First 1200</option>
+                    </select>
+                </div>
+            </div>
+            <div class="col-md-6 text-end">
+                <span class="text-muted small" id="displayStatus">
+                    <span id="visibleCount">{{ images|length }}</span> of {{ images|length }} images displayed
+                </span>
+            </div>
+        </div>
+    </div>
+</div>
+{% endif %}
+
 <!-- Bulk Actions Bar (Initially Hidden) -->
 <div class="card mb-4" id="bulkActionsBar" style="display: none;">
     <div class="card-body py-3">
@@ -99,6 +136,17 @@
         </div>
     </div>
     {% endfor %}
+</div>
+
+<!-- Load More Button (Initially Hidden) -->
+<div class="text-center mt-4" id="loadMoreSection" style="display: none;">
+    <button type="button" class="btn btn-outline-primary btn-lg" id="loadMoreBtn" onclick="loadMoreImages()">
+        <i class="fas fa-plus-circle me-2"></i>Load More Images
+        <span class="badge bg-primary ms-2" id="remainingCount">0</span>
+    </button>
+    <div class="text-muted small mt-2">
+        Click to load more images from this collection
+    </div>
 </div>
 
 <!-- Single Image Delete Confirmation Modal -->
@@ -280,8 +328,12 @@
 </style>
 
 <script>
-    // Pass current class name to JavaScript
+    // Pass current class name and total images to JavaScript
     window.currentClassName = '{{ class_name }}';
+    window.totalImages = {{ images | length }};
+    window.allImageCards = []; // Will store all image cards for filtering
+    window.currentlyVisible = {{ images | length }};
+    window.currentLimit = 'all';
 </script>
 
 <script>
@@ -289,7 +341,7 @@
     let currentDeleteFilename = '';
     let currentDeleteClassName = '';
 
-    // Handle delete button clicks
+    // Handle delete button clicks and initialize image filtering
     document.addEventListener('DOMContentLoaded', function () {
         const deleteButtons = document.querySelectorAll('.delete-btn');
 
@@ -313,7 +365,149 @@
                 this.style.transform = 'translateY(0)';
             });
         });
+
+        // Initialize image filtering
+        initializeImageFiltering();
     });
+
+    // Image Filtering Functions
+    function initializeImageFiltering() {
+        // Store all image cards for filtering
+        const imageGrid = document.getElementById('imageGrid');
+        if (imageGrid) {
+            window.allImageCards = Array.from(imageGrid.children);
+            console.log(`Initialized image filtering with ${window.allImageCards.length} images`);
+
+            // Set initial filter state
+            updateDisplayStatus();
+        }
+    }
+
+    function applyImageFilter() {
+        const limitSelect = document.getElementById('imageLimit');
+        const selectedLimit = limitSelect.value;
+        window.currentLimit = selectedLimit;
+
+        console.log(`Applying image filter: ${selectedLimit}`);
+
+        if (selectedLimit === 'all') {
+            showAllImages();
+        } else {
+            const limit = parseInt(selectedLimit);
+            showLimitedImages(limit);
+        }
+
+        updateDisplayStatus();
+        updateBulkSelectionAfterFilter();
+    }
+
+    function showAllImages() {
+        window.allImageCards.forEach(card => {
+            card.style.display = 'block';
+        });
+        window.currentlyVisible = window.allImageCards.length;
+        hideLoadMoreButton();
+    }
+
+    function showLimitedImages(limit) {
+        window.allImageCards.forEach((card, index) => {
+            if (index < limit) {
+                card.style.display = 'block';
+            } else {
+                card.style.display = 'none';
+            }
+        });
+
+        window.currentlyVisible = Math.min(limit, window.allImageCards.length);
+
+        // Show load more button if there are more images
+        if (limit < window.allImageCards.length) {
+            showLoadMoreButton(limit);
+        } else {
+            hideLoadMoreButton();
+        }
+    }
+
+    function loadMoreImages() {
+        const currentLimit = parseInt(window.currentLimit);
+        const newLimit = currentLimit + 100; // Load 100 more images
+
+        console.log(`Loading more images: ${currentLimit} -> ${newLimit}`);
+
+        // Update the select dropdown
+        const limitSelect = document.getElementById('imageLimit');
+
+        // Add new option if it doesn't exist
+        let newOption = limitSelect.querySelector(`option[value="${newLimit}"]`);
+        if (!newOption && newLimit <= window.allImageCards.length) {
+            newOption = document.createElement('option');
+            newOption.value = newLimit;
+            newOption.textContent = `First ${newLimit}`;
+
+            // Insert in the right position
+            const options = Array.from(limitSelect.options);
+            let inserted = false;
+            for (let i = 1; i < options.length; i++) { // Skip "All" option
+                const optionValue = parseInt(options[i].value);
+                if (optionValue > newLimit) {
+                    limitSelect.insertBefore(newOption, options[i]);
+                    inserted = true;
+                    break;
+                }
+            }
+            if (!inserted) {
+                limitSelect.appendChild(newOption);
+            }
+        }
+
+        // Select the new limit
+        limitSelect.value = newLimit;
+        window.currentLimit = newLimit;
+
+        // Apply the filter
+        showLimitedImages(newLimit);
+        updateDisplayStatus();
+        updateBulkSelectionAfterFilter();
+    }
+
+    function showLoadMoreButton(currentLimit) {
+        const loadMoreSection = document.getElementById('loadMoreSection');
+        const remainingCount = document.getElementById('remainingCount');
+
+        if (loadMoreSection && remainingCount) {
+            const remaining = window.allImageCards.length - currentLimit;
+            remainingCount.textContent = remaining;
+            loadMoreSection.style.display = 'block';
+        }
+    }
+
+    function hideLoadMoreButton() {
+        const loadMoreSection = document.getElementById('loadMoreSection');
+        if (loadMoreSection) {
+            loadMoreSection.style.display = 'none';
+        }
+    }
+
+    function updateDisplayStatus() {
+        const visibleCountSpan = document.getElementById('visibleCount');
+        if (visibleCountSpan) {
+            visibleCountSpan.textContent = window.currentlyVisible;
+        }
+    }
+
+    function updateBulkSelectionAfterFilter() {
+        // Clear any selections that are now hidden
+        if (typeof selectedImages !== 'undefined') {
+            const hiddenImages = window.allImageCards.filter(card => card.style.display === 'none');
+            hiddenImages.forEach(card => {
+                const checkbox = card.querySelector('.image-checkbox');
+                if (checkbox && checkbox.checked) {
+                    checkbox.checked = false;
+                    handleImageSelection(checkbox);
+                }
+            });
+        }
+    }
 
     // Function to handle image deletion with AJAX
     function deleteImage() {

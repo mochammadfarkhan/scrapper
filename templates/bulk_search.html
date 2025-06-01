@@ -14,7 +14,7 @@
             <div class="card-body">
                 <div class="alert alert-info" role="alert">
                     <i class="fas fa-info-circle me-2"></i>
-                    <strong>Bulk Search:</strong> Add multiple keyword/class combinations to scrape images in batch. 
+                    <strong>Bulk Search:</strong> Add multiple keyword/class combinations to scrape images in batch.
                     Each row will create a separate folder with the specified class name.
                 </div>
 
@@ -34,13 +34,16 @@
                             <table class="table table-bordered" id="searchTable">
                                 <thead class="table-light">
                                     <tr>
-                                        <th style="width: 40%;">
+                                        <th style="width: 30%;">
                                             <i class="fas fa-search me-1"></i>Keyword
                                         </th>
-                                        <th style="width: 40%;">
+                                        <th style="width: 30%;">
                                             <i class="fas fa-folder me-1"></i>Class Name
                                         </th>
-                                        <th style="width: 20%;" class="text-center">Actions</th>
+                                        <th style="width: 25%;">
+                                            <i class="fas fa-folder-open me-1"></i>Destination Folder
+                                        </th>
+                                        <th style="width: 15%;" class="text-center">Actions</th>
                                     </tr>
                                 </thead>
                                 <tbody id="searchTableBody">
@@ -56,8 +59,8 @@
                             <label for="images_per_class" class="form-label">
                                 <i class="fas fa-image me-1"></i>Images per Class *
                             </label>
-                            <input type="number" class="form-control" id="images_per_class" name="images_per_class" 
-                                   value="100" min="1" max="500" required>
+                            <input type="number" class="form-control" id="images_per_class" name="images_per_class"
+                                value="100" min="1" max="500" required>
                             <div class="invalid-feedback">Please enter a number between 1 and 500</div>
                             <div class="form-text">Number of images to download for each class</div>
                         </div>
@@ -66,14 +69,15 @@
                                 <i class="fas fa-folder-open me-1"></i>Destination Folder
                             </label>
                             <input type="text" class="form-control" id="destination_folder" name="destination_folder"
-                                   placeholder="Leave empty for default folder">
+                                placeholder="Leave empty for default folder">
                             <div class="form-text">Optional: Custom folder path (default: scraped_images)</div>
                         </div>
                     </div>
 
                     <!-- Submit Button -->
                     <div class="d-grid gap-2">
-                        <button type="button" class="btn btn-success btn-lg" id="startBulkSearchBtn" onclick="startBulkSearch()">
+                        <button type="button" class="btn btn-success btn-lg" id="startBulkSearchBtn"
+                            onclick="startBulkSearch()">
                             <i class="fas fa-rocket me-2"></i>Start Bulk Search
                         </button>
                     </div>
@@ -186,7 +190,8 @@
                     <i class="fas fa-clock me-2"></i>Bulk Processing Status
                 </h6>
                 <ul class="list-unstyled small">
-                    <li><i class="fas fa-check text-success me-2"></i>Processing each keyword/class pair sequentially</li>
+                    <li><i class="fas fa-check text-success me-2"></i>Processing each keyword/class pair sequentially
+                    </li>
                     <li><i class="fas fa-check text-success me-2"></i>Creating separate folders for each class</li>
                     <li><i class="fas fa-check text-success me-2"></i>Downloading and organizing images</li>
                     <li><i class="fas fa-check text-success me-2"></i>Validating and saving image files</li>
