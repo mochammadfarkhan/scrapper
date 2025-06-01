@@ -7,7 +7,7 @@
     <div>
         <h2>
             <i class="fas fa-images me-2"></i>{{ class_name }} Images
-            <span class="badge bg-secondary ms-2">{{ images|length }} images</span>
+            <span class="badge bg-secondary ms-2" id="totalImageCount">{{ images|length }} images</span>
         </h2>
         <nav aria-label="breadcrumb">
             <ol class="breadcrumb">
@@ -26,18 +26,67 @@
     </div>
 </div>
 
+<!-- Bulk Actions Bar (Initially Hidden) -->
+<div class="card mb-4" id="bulkActionsBar" style="display: none;">
+    <div class="card-body py-3">
+        <div class="row align-items-center">
+            <div class="col-md-6">
+                <div class="d-flex align-items-center">
+                    <span class="badge bg-primary me-3" id="selectedCount">0 images selected</span>
+                    <div class="btn-group btn-group-sm me-3">
+                        <button type="button" class="btn btn-outline-primary" onclick="selectAllImages()">
+                            <i class="fas fa-check-square me-1"></i>Select All
+                        </button>
+                        <button type="button" class="btn btn-outline-secondary" onclick="deselectAllImages()">
+                            <i class="fas fa-square me-1"></i>Deselect All
+                        </button>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-6 text-end">
+                <div class="btn-group">
+                    <button type="button" class="btn btn-warning" onclick="showMoveModal()" id="moveImagesBtn" disabled>
+                        <i class="fas fa-folder-open me-1"></i>Move Images
+                    </button>
+                    <button type="button" class="btn btn-danger" onclick="showDeleteModal()" id="deleteImagesBtn"
+                        disabled>
+                        <i class="fas fa-trash me-1"></i>Delete Images
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
 {% if images %}
 <div class="row g-3" id="imageGrid">
     {% for image in images %}
     <div class="col-sm-6 col-md-4 col-lg-3" id="image-{{ loop.index }}">
-        <div class="card h-100 shadow-sm image-card">
-            <div class="position-relative">
+        <div class="card h-100 shadow-sm image-card" data-filename="{{ image.filename }}"
+            data-relative-path="{{ image.relative_path }}">
+            <div class="position-relative image-container" onclick="toggleImageSelection(this)">
+                <!-- Selection Checkbox -->
+                <div class="position-absolute top-0 start-0 p-2" style="z-index: 10;">
+                    <input type="checkbox" class="form-check-input image-checkbox" data-filename="{{ image.filename }}"
+                        data-relative-path="{{ image.relative_path }}" onchange="handleImageSelection(this)">
+                </div>
+
+                <!-- Selection Overlay -->
+                <div class="selection-overlay position-absolute top-0 start-0 w-100 h-100"
+                    style="display: none; z-index: 5;">
+                    <div class="d-flex align-items-center justify-content-center h-100">
+                        <i class="fas fa-check-circle fa-3x text-white"></i>
+                    </div>
+                </div>
+
                 <img src="{{ url_for('serve_image', filename=image.relative_path) }}" class="card-img-top"
                     alt="{{ image.filename }}" style="height: 200px; object-fit: cover;" loading="lazy">
-                <div class="position-absolute top-0 end-0 p-2">
+
+                <!-- Individual Delete Button -->
+                <div class="position-absolute top-0 end-0 p-2" style="z-index: 10;">
                     <button class="btn btn-danger btn-sm delete-btn" data-bs-toggle="modal"
-                        data-bs-target="#deleteModal" data-filename="{{ image.filename }}"
-                        data-class="{{ class_name }}">
+                        data-bs-target="#deleteModal" data-filename="{{ image.filename }}" data-class="{{ class_name }}"
+                        onclick="event.stopPropagation();">
                         <i class="fas fa-trash"></i>
                     </button>
                 </div>
@@ -52,7 +101,7 @@
     {% endfor %}
 </div>
 
-<!-- Delete Confirmation Modal -->
+<!-- Single Image Delete Confirmation Modal -->
 <div class="modal fade" id="deleteModal" tabindex="-1">
     <div class="modal-dialog">
         <div class="modal-content">
@@ -75,6 +124,97 @@
         </div>
     </div>
 </div>
+
+<!-- Bulk Delete Confirmation Modal -->
+<div class="modal fade" id="bulkDeleteModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">
+                    <i class="fas fa-exclamation-triangle text-danger me-2"></i>Confirm Bulk Delete
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="alert alert-warning">
+                    <i class="fas fa-exclamation-triangle me-2"></i>
+                    <strong>Warning:</strong> You are about to delete <span id="bulkDeleteCount">0</span> images.
+                </div>
+                <p>This action cannot be undone. Please type <strong>DELETE</strong> to confirm:</p>
+                <input type="text" class="form-control" id="bulkDeleteConfirmation"
+                    placeholder="Type DELETE to confirm">
+                <div class="invalid-feedback" id="bulkDeleteError" style="display: none;">
+                    Please type "DELETE" to confirm the deletion.
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-danger" id="confirmBulkDeleteBtn" onclick="confirmBulkDelete()"
+                    disabled>
+                    <i class="fas fa-trash me-1"></i>Delete Images
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Move Images Modal -->
+<div class="modal fade" id="moveModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">
+                    <i class="fas fa-folder-open text-warning me-2"></i>Move Images
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="alert alert-info">
+                    <i class="fas fa-info-circle me-2"></i>
+                    Moving <span id="moveImageCount">0</span> images from <strong>{{ class_name }}</strong>
+                </div>
+
+                <div class="mb-3">
+                    <label for="destinationFolder" class="form-label">
+                        <i class="fas fa-folder me-1"></i>Destination Folder
+                    </label>
+                    <select class="form-select" id="destinationFolder">
+                        <option value="">Select a folder...</option>
+                        <!-- Options will be populated by JavaScript -->
+                    </select>
+                    <div class="invalid-feedback" id="destinationError" style="display: none;">
+                        Please select a destination folder.
+                    </div>
+                </div>
+
+                <div class="mb-3">
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" id="createNewFolder">
+                        <label class="form-check-label" for="createNewFolder">
+                            Create new folder
+                        </label>
+                    </div>
+                </div>
+
+                <div class="mb-3" id="newFolderInput" style="display: none;">
+                    <label for="newFolderName" class="form-label">
+                        <i class="fas fa-plus me-1"></i>New Folder Name
+                    </label>
+                    <input type="text" class="form-control" id="newFolderName" placeholder="Enter folder name">
+                    <div class="invalid-feedback" id="newFolderError" style="display: none;">
+                        Please enter a valid folder name.
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-warning" id="confirmMoveBtn" onclick="confirmMoveImages()">
+                    <i class="fas fa-folder-open me-1"></i>Move Images
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
 {% else %}
 <div class="text-center py-5">
     <div class="mb-4">
@@ -90,6 +230,60 @@
 {% endblock %}
 
 {% block scripts %}
+<!-- Include image management JavaScript -->
+<script src="{{ url_for('static', filename='js/image_management.js') }}"></script>
+
+<!-- Additional CSS for image selection -->
+<style>
+    .image-card.selected {
+        border: 3px solid #0d6efd;
+        box-shadow: 0 0 15px rgba(13, 110, 253, 0.3);
+        transform: scale(1.02);
+        transition: all 0.2s ease;
+    }
+
+    .selection-overlay {
+        background: rgba(13, 110, 253, 0.7);
+        backdrop-filter: blur(2px);
+    }
+
+    .image-container {
+        cursor: pointer;
+        transition: transform 0.2s ease;
+    }
+
+    .image-container:hover {
+        transform: scale(1.02);
+    }
+
+    .image-checkbox {
+        transform: scale(1.2);
+        border: 2px solid #fff;
+        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+    }
+
+    .bulk-actions-visible {
+        animation: slideDown 0.3s ease;
+    }
+
+    @keyframes slideDown {
+        from {
+            opacity: 0;
+            transform: translateY(-20px);
+        }
+
+        to {
+            opacity: 1;
+            transform: translateY(0);
+        }
+    }
+</style>
+
+<script>
+    // Pass current class name to JavaScript
+    window.currentClassName = '{{ class_name }}';
+</script>
+
 <script>
     // Global variables for delete functionality
     let currentDeleteFilename = '';

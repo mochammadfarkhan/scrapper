@@ -1,5 +1,7 @@
 from flask import Flask, render_template, request, redirect, url_for, flash, jsonify, send_from_directory, Response
 import os
+import shutil
+import re
 import threading
 import time
 import json
@@ -25,6 +27,11 @@ scraping_status = {
 def index():
     """Main page with input form."""
     return render_template('index.html')
+
+@app.route('/bulk-search')
+def bulk_search():
+    """Bulk image search form page."""
+    return render_template('bulk_search.html')
 
 @app.route('/dashboard')
 def dashboard():
@@ -138,6 +145,139 @@ def scrape_images():
     else:
         flash('Image scraping started! You can monitor progress below.', 'success')
         return redirect(url_for('scraping_progress'))
+
+@app.route('/perform-bulk-search', methods=['POST'])
+def perform_bulk_search():
+    """Handle bulk image search requests."""
+    global scraping_status
+
+    # Check if this is an AJAX request
+    is_ajax = request.headers.get('X-Requested-With') == 'XMLHttpRequest'
+
+    if scraping_status['is_running']:
+        if is_ajax:
+            return jsonify({
+                'status': 'error',
+                'message': 'Scraping is already in progress. Please wait for it to complete.'
+            })
+        else:
+            flash('Scraping is already in progress. Please wait for it to complete.', 'warning')
+            return redirect(url_for('bulk_search'))
+
+    try:
+        # Get form data
+        if is_ajax:
+            data = request.get_json()
+            search_entries = data.get('search_entries', [])
+            images_per_class = int(data.get('images_per_class', 100))
+            destination_folder = data.get('destination_folder', '').strip() or app.config['UPLOAD_FOLDER']
+        else:
+            # Handle form submission (fallback)
+            search_entries = []
+            keywords_list = request.form.getlist('keyword[]')
+            class_names_list = request.form.getlist('className[]')
+
+            for keyword, class_name in zip(keywords_list, class_names_list):
+                if keyword.strip() and class_name.strip():
+                    search_entries.append({
+                        'keyword': keyword.strip(),
+                        'className': class_name.strip()
+                    })
+
+            images_per_class = int(request.form.get('images_per_class', 100))
+            destination_folder = request.form.get('destination_folder', '').strip() or app.config['UPLOAD_FOLDER']
+
+        # Validate input
+        if not search_entries:
+            error_msg = 'No valid search entries provided'
+            if is_ajax:
+                return jsonify({'status': 'error', 'message': error_msg})
+            else:
+                flash(error_msg, 'error')
+                return redirect(url_for('bulk_search'))
+
+        if images_per_class < 1 or images_per_class > 500:
+            error_msg = 'Images per class must be between 1 and 500'
+            if is_ajax:
+                return jsonify({'status': 'error', 'message': error_msg})
+            else:
+                flash(error_msg, 'error')
+                return redirect(url_for('bulk_search'))
+
+        # Start bulk scraping in background thread
+        def bulk_scrape_worker():
+            global scraping_status
+            scraper = None
+            total_downloaded = 0
+
+            try:
+                # Clear previous logs
+                scraping_logger.clear_logs()
+                scraping_logger.info("🎬 Starting bulk scraping session")
+                scraping_logger.info(f"📝 Processing {len(search_entries)} search entries, {images_per_class} images each")
+
+                scraping_status['is_running'] = True
+                scraping_status['progress'] = 'Initializing bulk scraper...'
+
+                scraper = GoogleImageScraper(headless=True)
+
+                for i, entry in enumerate(search_entries, 1):
+                    keyword = entry['keyword']
+                    class_name = entry['className']
+
+                    scraping_status['progress'] = f'Processing {i}/{len(search_entries)}: {keyword} -> {class_name}'
+                    scraping_logger.info(f"🔍 [{i}/{len(search_entries)}] Processing: '{keyword}' -> '{class_name}'")
+
+                    def progress_callback(message):
+                        scraping_status['progress'] = f'[{i}/{len(search_entries)}] {message}'
+
+                    try:
+                        downloaded_count, class_folder = scraper.scrape_images(
+                            keyword, destination_folder, class_name, images_per_class, progress_callback
+                        )
+                        total_downloaded += downloaded_count
+                        scraping_logger.success(f"✅ [{i}/{len(search_entries)}] Completed: {downloaded_count} images for '{class_name}'")
+
+                    except Exception as e:
+                        scraping_logger.error(f"❌ [{i}/{len(search_entries)}] Failed '{keyword}' -> '{class_name}': {str(e)}")
+                        continue
+
+                scraping_status['progress'] = f'Bulk scraping completed! Downloaded {total_downloaded} images total.'
+                scraping_logger.info(f"🎉 Bulk scraping session completed - {total_downloaded} images total")
+                time.sleep(2)  # Keep message visible for a moment
+
+            except Exception as e:
+                error_msg = f'Bulk scraping error: {str(e)}'
+                scraping_status['progress'] = error_msg
+                scraping_logger.error(f"💥 Bulk scraping session failed: {str(e)}")
+            finally:
+                if scraper:
+                    scraper.close()
+                scraping_status['is_running'] = False
+
+        # Start background thread
+        thread = threading.Thread(target=bulk_scrape_worker)
+        thread.daemon = True
+        thread.start()
+
+        if is_ajax:
+            return jsonify({
+                'status': 'success',
+                'message': f'Bulk image scraping started for {len(search_entries)} entries! You can monitor progress below.',
+                'entries_count': len(search_entries),
+                'images_per_class': images_per_class
+            })
+        else:
+            flash(f'Bulk image scraping started for {len(search_entries)} entries! You can monitor progress below.', 'success')
+            return redirect(url_for('scraping_progress'))
+
+    except Exception as e:
+        error_msg = f'Error starting bulk scraping: {str(e)}'
+        if is_ajax:
+            return jsonify({'status': 'error', 'message': error_msg})
+        else:
+            flash(error_msg, 'error')
+            return redirect(url_for('bulk_search'))
 
 @app.route('/scraping_progress')
 def scraping_progress():
@@ -317,6 +457,212 @@ def delete_image_route(class_name, filename):
 
     # For non-AJAX requests, redirect back to the view_images page
     return redirect(url_for('view_images', class_name=class_name))
+
+@app.route('/api/folders')
+def api_folders():
+    """Get list of available folders excluding the current one."""
+    try:
+        current_folder = request.args.get('current', '')
+        all_classes = get_all_classes(app.config['UPLOAD_FOLDER'])
+
+        # Filter out the current folder
+        available_folders = [cls['name'] for cls in all_classes if cls['name'] != current_folder]
+
+        return jsonify({
+            'status': 'success',
+            'folders': available_folders,
+            'current_folder': current_folder
+        })
+    except Exception as e:
+        return jsonify({
+            'status': 'error',
+            'message': str(e)
+        }), 500
+
+@app.route('/api/move-images', methods=['POST'])
+def api_move_images():
+    """Move multiple images to a different folder."""
+    try:
+        data = request.get_json()
+        images = data.get('images', [])
+        destination_folder = data.get('destination_folder', '').strip()
+        source_folder = data.get('source_folder', '').strip()
+        create_new = data.get('create_new', False)
+
+        if not images:
+            return jsonify({
+                'status': 'error',
+                'message': 'No images specified'
+            }), 400
+
+        if not destination_folder:
+            return jsonify({
+                'status': 'error',
+                'message': 'No destination folder specified'
+            }), 400
+
+        if not source_folder:
+            return jsonify({
+                'status': 'error',
+                'message': 'No source folder specified'
+            }), 400
+
+        # Create destination folder if needed
+        if create_new:
+            from utils import create_class_folder
+            create_class_folder(app.config['UPLOAD_FOLDER'], destination_folder)
+
+        # Move images
+        moved_count = 0
+        failed_images = []
+
+        for image_relative_path in images:
+            try:
+                # Extract filename from relative path
+                filename = os.path.basename(image_relative_path)
+                source_path = os.path.join(app.config['UPLOAD_FOLDER'], source_folder, filename)
+                dest_path = os.path.join(app.config['UPLOAD_FOLDER'], destination_folder, filename)
+
+                # Ensure destination directory exists
+                dest_dir = os.path.dirname(dest_path)
+                if not os.path.exists(dest_dir):
+                    os.makedirs(dest_dir)
+
+                # Move the file
+                if os.path.exists(source_path):
+                    shutil.move(source_path, dest_path)
+                    moved_count += 1
+                else:
+                    failed_images.append(filename)
+
+            except Exception as e:
+                failed_images.append(f"{filename}: {str(e)}")
+
+        response_data = {
+            'status': 'success',
+            'moved_count': moved_count,
+            'destination_folder': destination_folder
+        }
+
+        if failed_images:
+            response_data['failed_images'] = failed_images
+            response_data['message'] = f'Moved {moved_count} images. {len(failed_images)} failed.'
+        else:
+            response_data['message'] = f'Successfully moved {moved_count} images to {destination_folder}'
+
+        return jsonify(response_data)
+
+    except Exception as e:
+        return jsonify({
+            'status': 'error',
+            'message': str(e)
+        }), 500
+
+@app.route('/api/delete-images', methods=['POST'])
+def api_delete_images():
+    """Delete multiple images."""
+    try:
+        data = request.get_json()
+        images = data.get('images', [])
+        folder = data.get('folder', '').strip()
+
+        if not images:
+            return jsonify({
+                'status': 'error',
+                'message': 'No images specified'
+            }), 400
+
+        if not folder:
+            return jsonify({
+                'status': 'error',
+                'message': 'No folder specified'
+            }), 400
+
+        # Delete images
+        deleted_count = 0
+        failed_images = []
+
+        for image_relative_path in images:
+            try:
+                # Extract filename from relative path
+                filename = os.path.basename(image_relative_path)
+                file_path = os.path.join(app.config['UPLOAD_FOLDER'], folder, filename)
+
+                if os.path.exists(file_path):
+                    os.remove(file_path)
+                    deleted_count += 1
+                else:
+                    failed_images.append(filename)
+
+            except Exception as e:
+                failed_images.append(f"{filename}: {str(e)}")
+
+        response_data = {
+            'status': 'success',
+            'deleted_count': deleted_count
+        }
+
+        if failed_images:
+            response_data['failed_images'] = failed_images
+            response_data['message'] = f'Deleted {deleted_count} images. {len(failed_images)} failed.'
+        else:
+            response_data['message'] = f'Successfully deleted {deleted_count} images'
+
+        return jsonify(response_data)
+
+    except Exception as e:
+        return jsonify({
+            'status': 'error',
+            'message': str(e)
+        }), 500
+
+@app.route('/api/create-folder', methods=['POST'])
+def api_create_folder():
+    """Create a new folder."""
+    try:
+        data = request.get_json()
+        folder_name = data.get('folder_name', '').strip()
+
+        if not folder_name:
+            return jsonify({
+                'status': 'error',
+                'message': 'No folder name specified'
+            }), 400
+
+        # Validate folder name
+        if not re.match(r'^[a-zA-Z0-9_\-\s]+$', folder_name):
+            return jsonify({
+                'status': 'error',
+                'message': 'Folder name can only contain letters, numbers, spaces, hyphens, and underscores'
+            }), 400
+
+        # Check if folder already exists
+        folder_path = os.path.join(app.config['UPLOAD_FOLDER'], folder_name)
+        if os.path.exists(folder_path):
+            return jsonify({
+                'status': 'error',
+                'message': 'Folder already exists'
+            }), 400
+
+        # Create folder
+        from utils import create_class_folder
+        create_class_folder(app.config['UPLOAD_FOLDER'], folder_name)
+
+        # Return updated folder list
+        all_classes = get_all_classes(app.config['UPLOAD_FOLDER'])
+        folder_names = [cls['name'] for cls in all_classes]
+
+        return jsonify({
+            'status': 'success',
+            'message': f'Folder "{folder_name}" created successfully',
+            'folders': folder_names
+        })
+
+    except Exception as e:
+        return jsonify({
+            'status': 'error',
+            'message': str(e)
+        }), 500
 
 @app.route('/api/folder_tab_info/<folder_name>')
 def api_folder_tab_info(folder_name):
